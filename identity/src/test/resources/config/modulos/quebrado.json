@@ -1,0 +1,11 @@
+{
+  "codigo": "quebrado",
+  "nome": "Registro com caminho errado — precisa ser ignorado",
+  "icone": "bug",
+  "urlFrontend": "/modulos/outro/",
+  "prefixoApi": "/api/quebrado",
+  "permissaoMenu": "quebrado.acessar",
+  "ordemMenu": 10,
+  "healthcheck": "/api/quebrado/health",
+  "itensSubmenu": []
+}

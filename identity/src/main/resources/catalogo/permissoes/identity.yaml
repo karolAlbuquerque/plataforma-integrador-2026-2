@@ -1,0 +1,42 @@
+# Permissões do módulo identity (Grupo 2).
+modulo: identity
+permissoes:
+  - codigo: identity.acessar
+    descricao: Ver o menu de administração da plataforma
+    perfisPadrao: [ADMINISTRADOR]
+
+  - codigo: identity.usuario.ver
+    descricao: Ver a lista de usuários e seus perfis
+    perfisPadrao: [ADMINISTRADOR, GESTOR]
+  - codigo: identity.usuario.administrar
+    descricao: Criar, editar, desativar usuários e trocar seus perfis
+    perfisPadrao: [ADMINISTRADOR]
+
+  - codigo: identity.perfil.ver
+    descricao: Ver perfis e as permissões de cada um
+    perfisPadrao: [ADMINISTRADOR, GESTOR]
+  - codigo: identity.perfil.administrar
+    descricao: Criar, editar e excluir perfis
+    perfisPadrao: [ADMINISTRADOR]
+
+  - codigo: identity.equipe.ver_resumo
+    descricao: Ver os membros de uma equipe para escolher responsável
+    perfisPadrao: [ADMINISTRADOR, GESTOR, VENDEDOR, PRE_VENDAS, FINANCEIRO, TECNICO, MARKETING]
+  - codigo: identity.equipe.administrar
+    descricao: Criar equipes e definir membros e líderes
+    perfisPadrao: [ADMINISTRADOR]
+
+  - codigo: identity.timeline.ver
+    descricao: Ver a timeline de uma empresa
+    perfisPadrao: [ADMINISTRADOR, GESTOR, VENDEDOR, PRE_VENDAS, FINANCEIRO, TECNICO]
+
+  - codigo: identity.auditoria.ver
+    descricao: Consultar a auditoria de acesso
+    perfisPadrao: [ADMINISTRADOR]
+  - codigo: identity.auditoria.exportar
+    descricao: Exportar o resultado da auditoria de acesso
+    perfisPadrao: [ADMINISTRADOR]
+
+  - codigo: identity.modulo.administrar
+    descricao: Ativar, desativar e reordenar módulos no menu
+    perfisPadrao: [ADMINISTRADOR]

@@ -1,0 +1,19 @@
+# Catálogo de teste: igual ao do infra, com o token de serviço do landing autorizado a criar item.
+modulo: exemplo
+permissoes:
+  - codigo: exemplo.acessar
+    descricao: Ver o módulo de exemplo no menu
+    perfisPadrao: [ADMINISTRADOR, GESTOR]
+  - codigo: exemplo.item.ver
+    descricao: Ver itens de exemplo
+    perfisPadrao: [ADMINISTRADOR, GESTOR]
+  - codigo: exemplo.item.criar
+    descricao: Criar itens de exemplo
+    perfisPadrao: [ADMINISTRADOR]
+    servicos: [landing]
+  - codigo: exemplo.item.excluir
+    descricao: Excluir itens de exemplo
+    perfisPadrao: [ADMINISTRADOR]
+  - codigo: crm.empresa.ver
+    descricao: Permissão de outro módulo declarada aqui — precisa ser ignorada
+    perfisPadrao: [ADMINISTRADOR]

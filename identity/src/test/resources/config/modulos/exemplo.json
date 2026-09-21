@@ -1,0 +1,15 @@
+{
+  "codigo": "exemplo",
+  "nome": "Exemplo",
+  "grupo": "Grupo 2 — módulo modelo",
+  "icone": "box",
+  "urlFrontend": "/modulos/exemplo/",
+  "prefixoApi": "/api/exemplo",
+  "permissaoMenu": "exemplo.acessar",
+  "ordemMenu": 900,
+  "healthcheck": "/api/exemplo/health",
+  "itensSubmenu": [
+    { "rota": "/", "nome": "Itens", "permissao": "exemplo.item.ver" },
+    { "rota": "/lixeira", "nome": "Lixeira", "permissao": "exemplo.item.excluir" }
+  ]
+}

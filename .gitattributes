@@ -1,0 +1,6 @@
+# Tudo roda em containers Linux: fim de linha LF sempre, mesmo clonado no Windows.
+* text=auto eol=lf
+*.jar binary
+*.png binary
+*.jpg binary
+*.ico binary

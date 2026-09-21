@@ -1,0 +1,71 @@
+# Toda configuração que muda por ambiente vem de variável (Contrato §13.3). Os nomes das
+# variáveis são os que o docker-compose do infra-integrador-2026 já entrega.
+server:
+  port: ${SERVER_PORT:8081}
+  max-http-request-header-size: 32KB   # token de ADMINISTRADOR pode passar de 8 KB (Contrato §4.4)
+
+spring:
+  application:
+    name: identity
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/plataforma}
+    username: ${DB_APP_USER:usr_identity}
+    password: ${DB_APP_PASSWORD:troque}
+
+  flyway:
+    user: ${DB_OWNER_USER:own_identity}          # migrations rodam com o dono do schema (Contrato §7.1)
+    password: ${DB_OWNER_PASSWORD:troque}
+    schemas: identity
+    default-schema: identity
+    create-schemas: false                        # o schema já foi criado pelo infra
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    virtual-host: ${RABBITMQ_VHOST:plataforma}
+    username: ${RABBITMQ_USER:mq_identity}
+    password: ${RABBITMQ_PASSWORD:troque}
+    listener:
+      simple:
+        default-requeue-rejected: false          # esgotadas as tentativas, vai para a .dlq
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+
+identity:
+  jwt:
+    # Base64 de um PEM "BEGIN PRIVATE KEY" (PKCS#8), gerado por scripts/gerar-env.sh do infra.
+    # Vazio só é aceito no perfil dev, que gera uma chave efêmera.
+    chave-privada: ${JWT_CHAVE_PRIVADA:}
+    kid: ${JWT_KID:dev-2026}
+    emissor: http://identity:8081
+    validade: 15m
+  sessao:
+    duracao-maxima: 8h                           # o refresh renova o token, mas não estende a sessão
+  cookie:
+    seguro: true                                 # o Chrome aceita Secure em http://localhost
+  login:
+    maximo-falhas: 5
+    janela: 15m
+  config:
+    diretorio: /config                           # permissoes/ e modulos/ do infra, montados pelo compose
+  servicos:
+    modulos: crm,produtos,contratos,financeiro,chamados,marketing,landing,exemplo
+  saude:
+    habilitada: true
+    base-url: http://gateway:8080
+    intervalo: 30s
+    timeout: 3s
+  email:
+    remetente: plataforma@integrador.dev
+
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}]"

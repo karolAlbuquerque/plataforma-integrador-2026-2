@@ -1,0 +1,23 @@
+# Servidor da casca. A porta vem da variável PORTA (Contrato §13.3); o gateway entrega "/" aqui.
+#
+# Atenção: add_header dentro de um location substitui todos os de fora. Por isso os cabeçalhos
+# de segurança estão repetidos em cada bloco, via include.
+server {
+    listen ${PORTA};
+    server_name _;
+    root /usr/share/nginx/html;
+
+    # Rotas do React (/, /app/crm/funil...): tudo o que não é arquivo devolve o index.html
+    location / {
+        include /etc/nginx/seguranca.conf;
+        add_header Cache-Control "no-store" always;
+        try_files $uri /index.html;
+    }
+
+    # Arquivos com hash no nome: nunca mudam, podem ficar em cache para sempre
+    location /assets/ {
+        include /etc/nginx/seguranca.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+}

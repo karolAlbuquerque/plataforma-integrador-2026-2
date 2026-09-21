@@ -1,0 +1,30 @@
+# Os destinos vêm das variáveis ROTA_* que o docker-compose do infra-integrador-2026 entrega
+# (ver Rotas.java). Módulo sem variável definida simplesmente não tem rota.
+server:
+  port: ${SERVER_PORT:8080}
+  max-http-request-header-size: 32KB   # token de ADMINISTRADOR pode passar de 8 KB (Contrato §4.4)
+  # O gateway é a borda: o endereço remoto é o da conexão TCP, nunca o que o cliente escreve em
+  # X-Forwarded-For. Com proxy na frente (staging), trocar para "native" e restringir trusted-proxies.
+  forward-headers-strategy: none
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 3000              # módulo fora do ar vira 503 em 3 s, não em 30
+          # Sem trusted-proxies, de propósito. Com ela, o Netty do gateway passa a tomar o
+          # X-Forwarded-For do cliente como endereço remoto, e o filtro nativo o repassa. Aqui quem
+          # grava o X-Forwarded-For é CabecalhosDoNavegadorFiltro, com o IP da conexão TCP.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWKS_URI:http://localhost:8081/api/identity/.well-known/jwks.json}
+          audiences: plataforma
+
+gateway:
+  modulos: crm,produtos,contratos,financeiro,chamados,marketing,landing,exemplo

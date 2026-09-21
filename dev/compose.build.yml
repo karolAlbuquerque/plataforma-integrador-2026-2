@@ -1,0 +1,14 @@
+# Compila identity, gateway e casca a partir deste repositório, em vez de baixar as imagens
+# publicadas. Usado a partir da pasta do infra-integrador-2026 — os caminhos são relativos a ela,
+# e os dois repositórios precisam estar lado a lado na mesma pasta:
+#
+#   cd ../infra-integrador-2026
+#   docker compose -f docker-compose.yml -f ../plataforma-integrador-2026-2/dev/compose.build.yml \
+#     --profile plataforma --profile exemplo up -d --build
+services:
+  identity:
+    build: ../plataforma-integrador-2026-2/identity
+  gateway:
+    build: ../plataforma-integrador-2026-2/gateway
+  casca:
+    build: ../plataforma-integrador-2026-2/casca

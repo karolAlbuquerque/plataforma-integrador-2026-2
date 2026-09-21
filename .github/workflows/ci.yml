@@ -1,0 +1,84 @@
+# Testa identity, gateway e casca em todo push e pull request. A cada push na main, publica as
+# três imagens em ghcr.io/<conta>/{identity,gateway,casca}, pelo workflow do infra-integrador-2026.
+#
+# Depois da primeira publicação, torne os três pacotes públicos em GitHub → Packages (a API não
+# permite): sem isso, os outros grupos não conseguem baixar as imagens.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Testes (Testcontainers usa o Docker do runner)
+        working-directory: identity
+        run: mvn -B verify
+
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - working-directory: gateway
+        run: mvn -B verify
+
+  casca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: casca/package-lock.json
+      - working-directory: casca
+        run: |
+          npm ci
+          npm run build
+
+  publicar-identity:
+    if: github.event_name == 'push'
+    needs: [identity]
+    permissions:
+      contents: read
+      packages: write
+    uses: karolAlbuquerque/infra-integrador-2026/.github/workflows/publicar-imagem.yml@main
+    with:
+      imagem: identity
+      contexto: identity
+
+  publicar-gateway:
+    if: github.event_name == 'push'
+    needs: [gateway]
+    permissions:
+      contents: read
+      packages: write
+    uses: karolAlbuquerque/infra-integrador-2026/.github/workflows/publicar-imagem.yml@main
+    with:
+      imagem: gateway
+      contexto: gateway
+
+  publicar-casca:
+    if: github.event_name == 'push'
+    needs: [casca]
+    permissions:
+      contents: read
+      packages: write
+    uses: karolAlbuquerque/infra-integrador-2026/.github/workflows/publicar-imagem.yml@main
+    with:
+      imagem: casca
+      contexto: casca
