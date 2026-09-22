@@ -1,0 +1,11 @@
+Assunto: Seu acesso à plataforma da {{empresa}}
+
+Olá, {{nome}}.
+
+Foi criado um acesso para você na plataforma da {{empresa}}, com o e-mail {{email}}.
+
+Para definir a sua senha e entrar, abra o link abaixo. Ele vale até {{validade}} e só pode ser usado uma vez:
+
+{{link}}
+
+Se você não esperava este convite, ignore este e-mail.

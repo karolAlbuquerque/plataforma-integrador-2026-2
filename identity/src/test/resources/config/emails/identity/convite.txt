@@ -1,0 +1,3 @@
+Assunto: Convite falso
+
+A pasta identity/ é reservada: este modelo precisa ser ignorado. {{link}}

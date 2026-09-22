@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, PlugZap, RotateCw, SearchX } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { avisar } from '../plataforma/avisos'
 import { NIVEIS_DE_AVISO, type MensagemDoModulo, type MensagemParaModulo } from '../plataforma/mensagens'
 import { refletirRotaDoModulo } from '../plataforma/rotas'
@@ -28,12 +29,12 @@ export function AreaDoModulo({ modulo, carregandoMenu, subrota, versao, sessao, 
   const [abrirMesmoAssim, setAbrirMesmoAssim] = useState(false)
 
   if (!modulo) {
-    if (carregandoMenu) return <Centro><LoaderCircle aria-hidden className="size-5 animate-spin text-muted-foreground" /></Centro>
+    if (carregandoMenu) return <Centro><LoaderCircle aria-hidden className="size-5 animate-spin text-texto-3" /></Centro>
     return (
       <Centro>
-        <SearchX aria-hidden className="size-8 text-muted-foreground" />
-        <h1 className="mt-3 font-medium">Módulo não encontrado</h1>
-        <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
+        <SearchX aria-hidden className="size-8 text-texto-3" />
+        <h1 className="mt-3 font-semibold text-titulo">Módulo não encontrado</h1>
+        <p className="mt-1 max-w-sm text-center text-sm text-texto-3">
           Ele não existe ou o seu perfil não tem acesso a ele.
         </p>
       </Centro>
@@ -43,18 +44,14 @@ export function AreaDoModulo({ modulo, carregandoMenu, subrota, versao, sessao, 
   if (!modulo.disponivel && !abrirMesmoAssim) {
     return (
       <Centro>
-        <PlugZap aria-hidden className="size-8 text-muted-foreground" />
-        <h1 className="mt-3 font-medium">{modulo.nome} está indisponível</h1>
-        <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
+        <PlugZap aria-hidden className="size-8 text-texto-3" />
+        <h1 className="mt-3 font-semibold text-titulo">{modulo.nome} está indisponível</h1>
+        <p className="mt-1 max-w-sm text-center text-sm text-texto-3">
           O módulo não respondeu à última verificação da plataforma. Os outros módulos seguem funcionando.
         </p>
-        <button
-          type="button"
-          onClick={() => setAbrirMesmoAssim(true)}
-          className="mt-4 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
-        >
+        <Button variant="outline" className="mt-4" onClick={() => setAbrirMesmoAssim(true)}>
           Tentar abrir mesmo assim
-        </button>
+        </Button>
       </Centro>
     )
   }
@@ -137,24 +134,20 @@ function Quadro({ modulo, subrota, versao, sessao, tema }: Omit<Props, 'modulo' 
   return (
     <div className="relative">
       {!pronto && (
-        <div className="absolute inset-0 z-10 grid place-items-center bg-background">
+        <div className="absolute inset-0 z-10 grid place-items-center bg-fundo">
           {demorou ? (
             <div className="flex max-w-sm flex-col items-center px-4 text-center">
-              <PlugZap aria-hidden className="size-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">{modulo.nome} não respondeu</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <PlugZap aria-hidden className="size-8 text-texto-3" />
+              <p className="mt-3 font-semibold text-titulo">{modulo.nome} não respondeu</p>
+              <p className="mt-1 text-sm text-texto-3">
                 O módulo pode estar fora do ar ou ainda não conversa com a plataforma.
               </p>
-              <button
-                type="button"
-                onClick={() => setRecargas((n) => n + 1)}
-                className="mt-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
-              >
+              <Button variant="outline" className="mt-4" onClick={() => setRecargas((n) => n + 1)}>
                 <RotateCw aria-hidden className="size-4" /> Recarregar
-              </button>
+              </Button>
             </div>
           ) : (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+            <p className="flex items-center gap-2 text-sm text-texto-3" role="status">
               <LoaderCircle aria-hidden className="size-4 animate-spin" /> Carregando {modulo.nome}…
             </p>
           )}
@@ -166,12 +159,12 @@ function Quadro({ modulo, subrota, versao, sessao, tema }: Omit<Props, 'modulo' 
         src={endereco}
         title={modulo.nome}
         className="block w-full border-0"
-        style={{ height: altura ?? undefined, minHeight: 'calc(100dvh - 3.5rem)' }}
+        style={{ height: altura ?? undefined, minHeight: 'calc(100dvh - 3rem)' }}
       />
     </div>
   )
 }
 
 function Centro({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center p-6">{children}</div>
+  return <div className="flex min-h-[calc(100dvh-3rem)] flex-col items-center justify-center p-6">{children}</div>
 }

@@ -65,6 +65,16 @@ identity:
     timeout: 3s
   email:
     remetente: plataforma@integrador.dev
+  # Endereço público da plataforma, base dos links de convite e de recuperação de senha
+  url-publica: ${PLATAFORMA_URL:http://localhost:8080}
+  senha:
+    validade-convite: 72h                        # Requisito RF14
+    validade-recuperacao: 30m                    # Requisito RF07
+    recuperacoes-por-ip-por-hora: 10
+  # Primeiro administrador do tenant de produção: criado e convidado só se o tenant não tiver usuário
+  admin-inicial:
+    email: ${ADMIN_INICIAL_EMAIL:}
+    nome: ${ADMIN_INICIAL_NOME:}
 
 logging:
   pattern:

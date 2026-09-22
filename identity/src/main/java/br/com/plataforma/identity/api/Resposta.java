@@ -9,6 +9,11 @@ public record Resposta<T>(boolean success, T data, String message, List<ErroCamp
         return new Resposta<>(true, data, null, List.of());
     }
 
+    /** Sucesso sem dado, com a mensagem que a tela mostra. */
+    public static <T> Resposta<T> sucesso(String mensagem) {
+        return new Resposta<>(true, null, mensagem, List.of());
+    }
+
     public static <T> Resposta<T> falha(String mensagem) {
         return new Resposta<>(false, null, mensagem, List.of());
     }

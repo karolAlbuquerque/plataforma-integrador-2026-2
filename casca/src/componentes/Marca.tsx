@@ -1,13 +1,17 @@
-/** Nome do produto, na tela de entrada e no topo do menu. */
-export function Marca({ className = '' }: { className?: string }) {
+import { ShieldCheck } from 'lucide-react'
+import { cx } from '@/components/ui'
+
+/** Marca da Centinela, no topo da barra lateral e nas telas públicas. */
+export function Marca({ sobreEscuro = true, compacta = false, className }: { sobreEscuro?: boolean; compacta?: boolean; className?: string }) {
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      <svg viewBox="0 0 32 32" aria-hidden className="size-7 shrink-0">
-        <rect width="32" height="32" rx="7" className="fill-primary" />
-        <path d="M9 9h6v6H9zM17 9h6v6h-6zM9 17h6v6H9z" className="fill-primary-foreground" />
-        <path d="M17 17h6v6h-6z" className="fill-primary-foreground" opacity=".45" />
-      </svg>
-      <span className="text-[15px] font-semibold tracking-tight">Plataforma</span>
+    <div className={cx('flex items-center gap-2.5', className)}>
+      <span className={cx('grid size-8 shrink-0 place-items-center rounded-full', sobreEscuro ? 'bg-white' : 'bg-brand-950')}>
+        <ShieldCheck aria-hidden className={cx('size-4.5', sobreEscuro ? 'text-brand-950' : 'text-brand-400')} />
+      </span>
+      <span className={cx('leading-tight', compacta && 'sr-only')}>
+        <span className={cx('block text-sm font-bold', sobreEscuro ? 'text-white' : 'text-titulo')}>Centinela</span>
+        <span className={cx('block text-xs', sobreEscuro ? 'text-brand-400' : 'text-brand-700')}>soluções · plataforma</span>
+      </span>
     </div>
   )
 }

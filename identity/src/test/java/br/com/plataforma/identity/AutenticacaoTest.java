@@ -14,7 +14,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -31,9 +30,6 @@ class AutenticacaoTest extends BaseIntegracao {
 
     @Autowired
     JwtDecoder decodificador;
-
-    @Autowired
-    JdbcTemplate jdbc;
 
     @Test
     void loginDevolveTokenAssinadoComOsClaimsDoContrato() throws Exception {

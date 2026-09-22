@@ -1,0 +1,11 @@
+Assunto: Redefinição de senha — {{empresa}}
+
+Olá, {{nome}}.
+
+Recebemos um pedido para redefinir a senha da sua conta ({{email}}) na plataforma da {{empresa}}.
+
+Para criar uma senha nova, abra o link abaixo. Ele vale até {{validade}} e só pode ser usado uma vez:
+
+{{link}}
+
+Se não foi você, ignore este e-mail: a sua senha atual continua valendo.

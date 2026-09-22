@@ -1,58 +1,74 @@
-import { useCallback, useEffect, useState } from 'react'
-import { LogOut, Menu as IconeMenu, Moon, Sun, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { X } from 'lucide-react'
+import { cx } from '@/components/ui'
 import { chamar } from '../plataforma/api'
-import { useRota } from '../plataforma/rotas'
-import { sair, type Sessao } from '../plataforma/sessao'
+import { ProvedorDaCasca, type EstadoDoMenu } from '../plataforma/contexto'
+import { useRota, type Rota } from '../plataforma/rotas'
+import type { Sessao } from '../plataforma/sessao'
 import { aplicarTema } from '../plataforma/tema'
 import type { Eu, ModuloDoMenu, Tema } from '../plataforma/tipos'
+import { Equipes } from '../telas/admin/Equipes'
+import { Matriz } from '../telas/admin/Matriz'
+import { Perfis } from '../telas/admin/Perfis'
+import { Usuarios } from '../telas/admin/Usuarios'
+import { Conta } from '../telas/Conta'
+import { PaginaNaoEncontrada, Protegida } from '../telas/Estados'
+import { Inicio } from '../telas/Inicio'
 import { AreaDoModulo } from './AreaDoModulo'
 import { Avisos } from './Avisos'
-import { Inicio } from './Inicio'
-import { Marca } from './Marca'
-import { Menu, type EstadoDoMenu } from './Menu'
+import { BuscaRapida } from './BuscaRapida'
+import { Cabecalho } from './Cabecalho'
+import { BarraLateral } from './Menu'
 
 /** O menu é relido de tempos em tempos para refletir a disponibilidade dos módulos. */
 const ATUALIZACAO_DO_MENU = 60_000
+const CHAVE_DO_MENU_RECOLHIDO = 'plataforma:menu-recolhido'
 
-/** Barra, menu e área de conteúdo. Só aparece com sessão aberta. */
+function lerRecolhido() {
+  try {
+    return window.localStorage.getItem(CHAVE_DO_MENU_RECOLHIDO) === 'sim'
+  } catch {
+    return false
+  }
+}
+
+/** Barra lateral, cabeçalho e área de conteúdo. Só aparece com sessão aberta. */
 export function Casca({ sessao }: { sessao: Sessao }) {
   const rota = useRota()
   const [tema, setTema] = useState<Tema>(() => (document.documentElement.dataset.tema === 'escuro' ? 'escuro' : 'claro'))
   const [menu, setMenu] = useState<EstadoDoMenu>({ estado: 'carregando' })
   const [eu, setEu] = useState<Eu | null>(null)
   const [gavetaAberta, setGavetaAberta] = useState(false)
+  const [buscaAberta, setBuscaAberta] = useState(false)
+  const [recolhida, setRecolhida] = useState(lerRecolhido)
 
-  const carregar = useCallback(async () => {
-    setMenu({ estado: 'carregando' })
-    try {
-      const [dados, modulos] = await Promise.all([
-        chamar<Eu>('/api/identity/auth/me'),
-        chamar<ModuloDoMenu[]>('/api/identity/modulos'),
-      ])
-      setEu(dados)
-      setMenu({ estado: 'pronto', modulos })
-    } catch {
-      setMenu({ estado: 'erro' })
-    }
+  const carregarMenu = useCallback(() => {
+    chamar<ModuloDoMenu[]>('/api/identity/modulos')
+      .then((modulos) => setMenu({ estado: 'pronto', modulos }))
+      .catch(() => setMenu((atual) => (atual.estado === 'pronto' ? atual : { estado: 'erro' })))
   }, [])
 
-  const usuarioId = sessao.usuario.id
+  // A cada renovação o token pode trazer outras permissões (RF15): relê quem sou e o menu
   useEffect(() => {
-    void carregar()
-    const intervalo = window.setInterval(() => {
-      chamar<ModuloDoMenu[]>('/api/identity/modulos')
-        .then((modulos) => setMenu({ estado: 'pronto', modulos }))
-        .catch(() => undefined)   // falha momentânea: mantém o menu que já está na tela
-    }, ATUALIZACAO_DO_MENU)
+    chamar<Eu>('/api/identity/auth/me').then(setEu).catch(() => undefined)
+    carregarMenu()
+  }, [sessao.token, carregarMenu])
+
+  useEffect(() => {
+    const intervalo = window.setInterval(carregarMenu, ATUALIZACAO_DO_MENU)
     return () => window.clearInterval(intervalo)
-  }, [carregar, usuarioId])
-
-  const modulos = menu.estado === 'pronto' ? menu.modulos : []
-  const moduloAtual = rota.tipo === 'modulo' ? modulos.find((m) => m.codigo === rota.codigo) : undefined
+  }, [carregarMenu])
 
   useEffect(() => {
-    document.title = moduloAtual ? `${moduloAtual.nome} · Plataforma` : 'Plataforma'
-  }, [moduloAtual])
+    function atalho(evento: KeyboardEvent) {
+      if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'k') {
+        evento.preventDefault()
+        setBuscaAberta(true)
+      }
+    }
+    window.addEventListener('keydown', atalho)
+    return () => window.removeEventListener('keydown', atalho)
+  }, [])
 
   useEffect(() => {
     if (!gavetaAberta) return
@@ -61,95 +77,95 @@ export function Casca({ sessao }: { sessao: Sessao }) {
     return () => window.removeEventListener('keydown', fechar)
   }, [gavetaAberta])
 
-  function alternarTema() {
-    const novo: Tema = tema === 'claro' ? 'escuro' : 'claro'
-    aplicarTema(novo)
-    setTema(novo)
+  const alternarTema = useCallback(() => {
+    setTema((atual) => {
+      const novo: Tema = atual === 'claro' ? 'escuro' : 'claro'
+      aplicarTema(novo)
+      return novo
+    })
+  }, [])
+
+  function alternarRecolhida() {
+    setRecolhida((atual) => {
+      try {
+        window.localStorage.setItem(CHAVE_DO_MENU_RECOLHIDO, atual ? 'nao' : 'sim')
+      } catch {
+        // sem armazenamento, vale só até recarregar
+      }
+      return !atual
+    })
   }
 
-  const titulo = rota.tipo === 'inicio' ? 'Início' : moduloAtual?.nome ?? ''
-  const menuLateral = (fecharAoNavegar?: () => void) => (
-    <Menu menu={menu} rota={rota} aoTentarDeNovo={() => void carregar()} aoNavegar={fecharAoNavegar} />
+  const tem = useCallback((permissao: string) => eu?.permissoes.includes(permissao) ?? false, [eu])
+  const contexto = useMemo(
+    () => ({ sessao, eu, menu, tema, alternarTema, recarregarMenu: carregarMenu, tem }),
+    [sessao, eu, menu, tema, alternarTema, carregarMenu, tem],
   )
 
   return (
-    <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex">
-        <div className="flex h-14 shrink-0 items-center border-b px-4">
-          <Marca />
-        </div>
-        {menuLateral()}
-      </aside>
+    <ProvedorDaCasca valor={contexto}>
+      <div className="flex min-h-dvh">
+        <aside className={cx('sticky top-0 hidden h-dvh shrink-0 transition-[width] duration-200 md:block', recolhida ? 'w-16' : 'w-64')}>
+          <BarraLateral recolhida={recolhida} aoAlternar={alternarRecolhida} />
+        </aside>
 
-      {gavetaAberta && (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
-          <div className="absolute inset-0 bg-foreground/30" onClick={() => setGavetaAberta(false)} />
-          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col border-r bg-sidebar text-sidebar-foreground shadow-lg">
-            <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-              <Marca />
-              <button type="button" onClick={() => setGavetaAberta(false)} aria-label="Fechar menu" className="rounded-md p-1.5 hover:bg-sidebar-accent">
+        {gavetaAberta && (
+          <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+            <div className="absolute inset-0 bg-brand-950/60" onClick={() => setGavetaAberta(false)} />
+            <div className="relative h-full w-72 max-w-[85vw] shadow-2xl">
+              <BarraLateral recolhida={false} aoNavegar={() => setGavetaAberta(false)} />
+              <button
+                type="button"
+                onClick={() => setGavetaAberta(false)}
+                aria-label="Fechar o menu"
+                className="absolute top-2 right-2 rounded-lg p-1.5 text-brand-300 hover:bg-brand-800 hover:text-white"
+              >
                 <X aria-hidden className="size-5" />
               </button>
             </div>
-            {menuLateral(() => setGavetaAberta(false))}
-          </aside>
+          </div>
+        )}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Cabecalho aoAbrirMenu={() => setGavetaAberta(true)} aoAbrirBusca={() => setBuscaAberta(true)} />
+          <main className="flex min-w-0 flex-1 flex-col">
+            <Tela rota={rota} menu={menu} sessao={sessao} tema={tema} />
+          </main>
         </div>
-      )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
-          <button
-            type="button"
-            onClick={() => setGavetaAberta(true)}
-            aria-label="Abrir menu"
-            className="-ml-1.5 rounded-md p-1.5 hover:bg-accent md:hidden"
-          >
-            <IconeMenu aria-hidden className="size-5" />
-          </button>
-          <p className="min-w-0 flex-1 truncate text-sm font-medium">{titulo}</p>
-
-          {eu?.tenant.nome && (
-            <span className="hidden max-w-48 truncate text-sm text-muted-foreground lg:block">{eu.tenant.nome}</span>
-          )}
-          <span className="hidden max-w-48 truncate text-sm sm:block" title={sessao.usuario.email}>
-            {sessao.usuario.nome}
-          </span>
-          <button
-            type="button"
-            onClick={alternarTema}
-            aria-label={tema === 'claro' ? 'Usar tema escuro' : 'Usar tema claro'}
-            title={tema === 'claro' ? 'Tema escuro' : 'Tema claro'}
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            {tema === 'claro' ? <Moon aria-hidden className="size-4" /> : <Sun aria-hidden className="size-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => void sair()}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <LogOut aria-hidden className="size-4" />
-            <span className="hidden sm:inline">Sair</span>
-          </button>
-        </header>
-
-        <main className="flex-1">
-          {rota.tipo === 'inicio' ? (
-            <Inicio eu={eu} nome={sessao.usuario.nome} menu={menu} />
-          ) : (
-            <AreaDoModulo
-              modulo={moduloAtual}
-              carregandoMenu={menu.estado === 'carregando'}
-              subrota={rota.subrota}
-              versao={rota.versao}
-              sessao={sessao}
-              tema={tema}
-            />
-          )}
-        </main>
+        <BuscaRapida aberta={buscaAberta} aoFechar={() => setBuscaAberta(false)} />
+        <Avisos />
       </div>
-
-      <Avisos />
-    </div>
+    </ProvedorDaCasca>
   )
+}
+
+function Tela({ rota, menu, sessao, tema }: { rota: Rota; menu: EstadoDoMenu; sessao: Sessao; tema: Tema }) {
+  switch (rota.tipo) {
+    case 'inicio':
+      return <Inicio />
+    case 'modulo':
+      return (
+        <AreaDoModulo
+          modulo={menu.estado === 'pronto' ? menu.modulos.find((m) => m.codigo === rota.codigo) : undefined}
+          carregandoMenu={menu.estado === 'carregando'}
+          subrota={rota.subrota}
+          versao={rota.versao}
+          sessao={sessao}
+          tema={tema}
+        />
+      )
+    case 'conta':
+      return <Conta />
+    case 'usuarios':
+      return <Protegida permissao="identity.usuario.ver"><Usuarios /></Protegida>
+    case 'perfis':
+      return <Protegida permissao="identity.perfil.ver"><Perfis /></Protegida>
+    case 'perfil':
+      return <Protegida permissao="identity.perfil.ver"><Matriz key={rota.id} id={rota.id} /></Protegida>
+    case 'equipes':
+      return <Protegida permissao="identity.equipe.ver_resumo"><Equipes /></Protegida>
+    default:
+      return <PaginaNaoEncontrada />
+  }
 }

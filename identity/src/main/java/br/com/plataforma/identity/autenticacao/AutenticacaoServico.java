@@ -19,6 +19,7 @@ import br.com.plataforma.identity.autenticacao.Formatos.SessaoEmitida;
 import br.com.plataforma.identity.autenticacao.Formatos.UsuarioResumo;
 import br.com.plataforma.identity.seguranca.EmissorDeToken;
 import br.com.plataforma.identity.seguranca.TokenEmitido;
+import br.com.plataforma.identity.seguranca.TokenOpaco;
 import br.com.plataforma.identity.usuario.UsuarioAutenticado;
 import br.com.plataforma.identity.usuario.UsuarioDeLogin;
 import br.com.plataforma.identity.usuario.UsuarioRepositorio;
@@ -98,8 +99,12 @@ public class AutenticacaoServico {
         tentativas.registrar(email, origem.ip(), true);
         return transacao.execute(status -> {
             usuarios.registrarLogin(usuario.id());
-            SessaoEmitida sessao = abrirSessao(usuarios.carregarAcessos(usuario),
-                    Instant.now().plus(duracaoMaximaDaSessao), origem);
+            UsuarioAutenticado acessos = usuarios.carregarAcessos(usuario);
+            String refresh = TokenOpaco.gerar();
+            Instant fimDaSessao = Instant.now().plus(duracaoMaximaDaSessao);
+            refreshTokens.criar(usuario.id(), refresh, fimDaSessao, origem);
+            SessaoEmitida sessao = new SessaoEmitida(emissor.paraUsuario(acessos), refresh, fimDaSessao,
+                    UsuarioResumo.de(acessos));
             auditoria.registrar(usuario.tenantId(), usuario.id(), origem.ip(), "login", "sessao", usuario.id(), null);
             return sessao;
         });
@@ -132,7 +137,11 @@ public class AutenticacaoServico {
             if (usuario.isEmpty()) {
                 return Optional.empty();   // desativado durante a sessão: o token revogado acima encerra
             }
-            return Optional.of(abrirSessao(usuarios.carregarAcessos(usuario.get()), atual.expiraEm(), origem));
+            UsuarioAutenticado acessos = usuarios.carregarAcessos(usuario.get());
+            String refresh = TokenOpaco.gerar();
+            refreshTokens.continuar(acessos.id(), refresh, atual.expiraEm(), origem, atual.sessaoId(), atual.iniciadaEm());
+            return Optional.of(new SessaoEmitida(emissor.paraUsuario(acessos), refresh, atual.expiraEm(),
+                    UsuarioResumo.de(acessos)));
         });
     }
 
@@ -167,13 +176,6 @@ public class AutenticacaoServico {
         TokenEmitido token = emissor.paraServico(clientId, credenciais.permissoes(id));
         auditoria.registrar(null, null, origem.ip(), "token_servico", "credencial_servico", id, Map.of("clientId", clientId));
         return token;
-    }
-
-    private SessaoEmitida abrirSessao(UsuarioAutenticado usuario, Instant fimDaSessao, Origem origem) {
-        TokenEmitido token = emissor.paraUsuario(usuario);
-        String refresh = RefreshTokens.gerar();
-        refreshTokens.criar(usuario.id(), refresh, fimDaSessao, origem);
-        return new SessaoEmitida(token, refresh, fimDaSessao, UsuarioResumo.de(usuario));
     }
 
     /** O BCrypt recusa entrada acima de 72 bytes com exceção; aqui isso é só uma senha errada. */

@@ -29,6 +29,9 @@ public class SegurancaConfig {
             "/api/identity/auth/refresh",
             "/api/identity/auth/logout",
             "/api/identity/auth/token-servico",
+            "/api/identity/auth/senha/recuperar",
+            "/api/identity/auth/senha/verificar",
+            "/api/identity/auth/senha/definir",
             "/api/identity/.well-known/jwks.json",
             "/api/identity/health",
             "/error"

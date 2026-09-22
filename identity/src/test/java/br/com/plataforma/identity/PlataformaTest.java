@@ -20,7 +20,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.SimpleMailMessage;
 
 import br.com.plataforma.identity.mensageria.ConsumidorDeEntrada;
@@ -35,9 +34,6 @@ class PlataformaTest extends BaseIntegracao {
 
     @Autowired
     ConsumidorDeEntrada consumidor;
-
-    @Autowired
-    JdbcTemplate jdbc;
 
     @Test
     void menuMostraSoOQueOPerfilPodeVer() throws Exception {
