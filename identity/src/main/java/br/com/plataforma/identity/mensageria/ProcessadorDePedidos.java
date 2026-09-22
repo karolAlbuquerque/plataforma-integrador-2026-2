@@ -9,13 +9,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import br.com.plataforma.identity.email.CorreioDeSistema;
+import br.com.plataforma.identity.email.ModeloDeEmail;
+import br.com.plataforma.identity.email.ModeloDeEmail.EmailMontado;
+import br.com.plataforma.identity.email.ModelosDeEmail;
 import br.com.plataforma.identity.mensageria.Mensagem.DadosEmail;
 import br.com.plataforma.identity.mensageria.Mensagem.DadosNotificacao;
 import br.com.plataforma.identity.mensageria.Mensagem.DadosTimeline;
@@ -49,19 +50,18 @@ public class ProcessadorDePedidos {
     private final UsuarioRepositorio usuarios;
     private final Timeline timeline;
     private final JdbcTemplate jdbc;
-    private final JavaMailSender correio;
-    private final String remetente;
+    private final CorreioDeSistema correio;
+    private final ModelosDeEmail modelos;
 
     public ProcessadorDePedidos(EventosProcessados processados, Tenants tenants, UsuarioRepositorio usuarios,
-                                Timeline timeline, JdbcTemplate jdbc, JavaMailSender correio,
-                                @Value("${identity.email.remetente}") String remetente) {
+                                Timeline timeline, JdbcTemplate jdbc, CorreioDeSistema correio, ModelosDeEmail modelos) {
         this.processados = processados;
         this.tenants = tenants;
         this.usuarios = usuarios;
         this.timeline = timeline;
         this.jdbc = jdbc;
         this.correio = correio;
-        this.remetente = remetente;
+        this.modelos = modelos;
     }
 
     @Transactional
@@ -108,6 +108,10 @@ public class ProcessadorDePedidos {
      * O envio acontece dentro da transação: se o SMTP falhar, o registro de processado é desfeito e
      * a mensagem volta para nova tentativa. Enviado e com falha no commit, o e-mail sai duas vezes —
      * risco aceito, bem menor que perder o e-mail.
+     *
+     * Modelo "{modulo}.{nome}" vem de emails/ do infra e só pode ser usado pelo próprio módulo; os
+     * "identity.*" (convite e senha) nunca: um módulo mandaria um "convite" com link falso. Nome sem
+     * ponto usa o formato genérico da onda 1.
      */
     @Transactional
     public boolean enviarEmail(Mensagem<DadosEmail> mensagem) {
@@ -116,18 +120,31 @@ public class ProcessadorDePedidos {
         exigir(dados.para() != null && dados.para().length() <= 254 && EMAIL.matcher(dados.para()).matches(),
                 "dados.para precisa ser um e-mail válido.");
         exigir(temTexto(dados.modelo(), 100), "dados.modelo é obrigatório, com até 100 caracteres.");
+        Map<String, String> variaveis = dados.variaveis() == null ? Map.of() : dados.variaveis();
+        exigir(variaveis.values().stream().allMatch(valor -> valor == null || valor.length() <= 2000),
+                "cada variável pode ter até 2000 caracteres.");
+        EmailMontado email = montar(dados.modelo().strip(), mensagem.moduloOrigem(), variaveis);
 
         if (!processados.registrar(mensagem.id(), mensagem.tipo())) {
             return false;
         }
-        Map<String, String> variaveis = dados.variaveis() == null ? Map.of() : dados.variaveis();
-        SimpleMailMessage email = new SimpleMailMessage();
-        email.setFrom(remetente);
-        email.setTo(dados.para());
-        email.setSubject(assunto(dados.modelo(), variaveis));
-        email.setText(corpo(variaveis));
-        correio.send(email);
+        correio.enviar(dados.para(), email);
         return true;
+    }
+
+    private EmailMontado montar(String modelo, String moduloOrigem, Map<String, String> variaveis) {
+        if (!modelo.contains(".")) {
+            return new EmailMontado(assunto(modelo, variaveis), corpo(variaveis));
+        }
+        exigir(!modelo.startsWith("identity."), "os modelos identity.* são internos da plataforma.");
+        exigir(modelo.startsWith(moduloOrigem + "."), "o modelo precisa ser do módulo de origem (" + moduloOrigem + ".*).");
+        ModeloDeEmail cadastrado = modelos.doModulo(modelo).orElseThrow(() ->
+                new MensagemRecusadaException("o modelo " + modelo + " não está cadastrado em emails/ do infra."));
+        try {
+            return cadastrado.montar(variaveis);
+        } catch (IllegalArgumentException e) {
+            throw new MensagemRecusadaException(e.getMessage() + ".");
+        }
     }
 
     private void conferirEnvelope(Mensagem<?> mensagem, String tipoEsperado) {
@@ -141,8 +158,8 @@ public class ProcessadorDePedidos {
     }
 
     /**
-     * Modelos cadastrados na plataforma chegam na onda 2. Até lá: assunto e corpo vêm das
-     * variáveis "assunto" e "mensagem", e as demais variáveis aparecem como lista.
+     * Formato genérico da onda 1, para modelo sem ponto: assunto e corpo vêm das variáveis
+     * "assunto" e "mensagem", e as demais variáveis aparecem como lista.
      */
     static String assunto(String modelo, Map<String, String> variaveis) {
         String assunto = variaveis.get("assunto");
@@ -164,8 +181,7 @@ public class ProcessadorDePedidos {
                 .filter(variavel -> !VARIAVEIS_DE_FORMA.contains(variavel.getKey()))
                 .sorted(Map.Entry.comparingByKey(Comparator.naturalOrder()))
                 .forEach(variavel -> texto.append(variavel.getKey()).append(": ").append(variavel.getValue()).append('\n'));
-        texto.append("\n--\nMensagem automática da plataforma. Não responda este e-mail.\n");
-        return texto.toString();
+        return texto.toString().stripTrailing();
     }
 
     private static OffsetDateTime ocorridoEm(Mensagem<?> mensagem) {

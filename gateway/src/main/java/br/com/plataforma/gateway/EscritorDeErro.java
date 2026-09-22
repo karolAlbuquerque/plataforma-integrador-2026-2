@@ -16,7 +16,11 @@ import reactor.core.publisher.Mono;
 @Component
 public class EscritorDeErro {
 
-    record Resposta(boolean success, Object data, String message, List<Object> errors) {
+    record Resposta(boolean success, Object data, String message, List<Erro> errors) {
+    }
+
+    /** O ErroDeCampo do contrato: { campo, codigo, detalhe }. */
+    record Erro(String campo, String codigo, String detalhe) {
     }
 
     private final ObjectMapper mapper;
@@ -26,9 +30,13 @@ public class EscritorDeErro {
     }
 
     public Mono<Void> escrever(ServerHttpResponse resposta, int status, String mensagem) {
+        return escrever(resposta, status, mensagem, List.of());
+    }
+
+    public Mono<Void> escrever(ServerHttpResponse resposta, int status, String mensagem, List<Erro> erros) {
         byte[] corpo;
         try {
-            corpo = mapper.writeValueAsBytes(new Resposta(false, null, mensagem, List.of()));
+            corpo = mapper.writeValueAsBytes(new Resposta(false, null, mensagem, erros));
         } catch (JsonProcessingException e) {
             return Mono.error(e);
         }

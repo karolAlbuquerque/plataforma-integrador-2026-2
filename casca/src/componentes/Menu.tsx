@@ -1,32 +1,24 @@
-import type { MouseEvent } from 'react'
-import { House, RotateCw } from 'lucide-react'
-import { caminhoDoModulo, navegar, type Rota } from '../plataforma/rotas'
-import type { ModuloDoMenu } from '../plataforma/tipos'
+import type { ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, House, RotateCw } from 'lucide-react'
+import { cx } from '@/components/ui'
+import { itensDeAdministracao, useCasca } from '../plataforma/contexto'
+import { caminhoDoModulo, useRota, type Rota } from '../plataforma/rotas'
 import { IconeDoModulo } from './Icone'
+import { Link } from './Link'
+import { Marca } from './Marca'
 
-export type EstadoDoMenu =
-  | { estado: 'carregando' }
-  | { estado: 'erro' }
-  | { estado: 'pronto'; modulos: ModuloDoMenu[] }
-
-interface Props {
-  menu: EstadoDoMenu
-  rota: Rota
-  aoTentarDeNovo: () => void
-  aoNavegar?: () => void
+/** Caminho da tela da casca que está aberta, para marcar o item ativo. */
+export function caminhoDaRota(rota: Rota) {
+  switch (rota.tipo) {
+    case 'usuarios': return '/admin/usuarios'
+    case 'perfis':
+    case 'perfil': return '/admin/perfis'
+    case 'equipes': return '/admin/equipes'
+    case 'conta': return '/conta'
+    case 'inicio': return '/'
+    default: return null
+  }
 }
-
-/** Clique comum navega sem recarregar; com Ctrl, Shift ou botão do meio, o navegador decide. */
-function seguir(evento: MouseEvent<HTMLAnchorElement>, aoNavegar?: () => void) {
-  if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
-  evento.preventDefault()
-  navegar(evento.currentTarget.getAttribute('href') ?? '/')
-  aoNavegar?.()
-}
-
-const ITEM = 'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors'
-const ITEM_INATIVO = 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-const ITEM_ATIVO = 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 
 function subrotaAtiva(rota: Rota, codigo: string, alvo: string) {
   if (rota.tipo !== 'modulo' || rota.codigo !== codigo) return false
@@ -34,86 +26,176 @@ function subrotaAtiva(rota: Rota, codigo: string, alvo: string) {
   return alvo === '/' ? caminho === '/' : caminho === alvo || caminho.startsWith(`${alvo}/`)
 }
 
-/** Menu montado do registro de módulos, já filtrado pelas permissões do usuário (RF33, RF34). */
-export function Menu({ menu, rota, aoTentarDeNovo, aoNavegar }: Props) {
+interface Props {
+  recolhida: boolean
+  /** Sem ele, não há botão de recolher (a gaveta do celular). */
+  aoAlternar?: () => void
+  aoNavegar?: () => void
+}
+
+/**
+ * Barra lateral (design system §9 e Tela 2): menu montado do registro de módulos, já filtrado
+ * pelas permissões do usuário (RF33), e as telas de administração. Recolhida, mostra só os ícones.
+ */
+export function BarraLateral({ recolhida, aoAlternar, aoNavegar }: Props) {
+  const { menu, tem, recarregarMenu } = useCasca()
+  const rota = useRota()
+  const administracao = itensDeAdministracao(tem)
+  const ativo = caminhoDaRota(rota)
+
   return (
-    <nav aria-label="Principal" className="flex-1 overflow-y-auto px-3 py-4">
-      <a
-        href="/"
-        onClick={(e) => seguir(e, aoNavegar)}
-        aria-current={rota.tipo === 'inicio' ? 'page' : undefined}
-        className={`${ITEM} ${rota.tipo === 'inicio' ? ITEM_ATIVO : ITEM_INATIVO}`}
-      >
-        <House aria-hidden className="size-4 shrink-0" />
-        Início
-      </a>
+    <div className="flex h-full flex-col bg-brand-950 text-gray-300">
+      <div className={cx('flex h-12 shrink-0 items-center border-b border-white/10', recolhida ? 'justify-center' : 'px-4')}>
+        <Marca compacta={recolhida} />
+      </div>
 
-      <p className="mt-6 mb-1 px-2.5 text-xs font-medium text-muted-foreground">Módulos</p>
-
-      {menu.estado === 'carregando' && (
-        <div className="grid gap-2 px-2.5 py-1" aria-hidden>
-          {[0, 1, 2].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-sidebar-accent" />)}
-        </div>
-      )}
-
-      {menu.estado === 'erro' && (
-        <div className="px-2.5 text-sm text-muted-foreground">
-          <p>Não foi possível carregar o menu.</p>
-          <button type="button" onClick={aoTentarDeNovo} className="mt-2 inline-flex items-center gap-1.5 font-medium text-foreground hover:underline">
-            <RotateCw aria-hidden className="size-3.5" /> Tentar de novo
-          </button>
-        </div>
-      )}
-
-      {menu.estado === 'pronto' && menu.modulos.length === 0 && (
-        <p className="px-2.5 text-sm text-muted-foreground">Nenhum módulo liberado para o seu perfil.</p>
-      )}
-
-      {menu.estado === 'pronto' && menu.modulos.length > 0 && (
-        <ul className="grid gap-0.5">
-          {menu.modulos.map((modulo) => {
-            const ativo = rota.tipo === 'modulo' && rota.codigo === modulo.codigo
-            return (
-              <li key={modulo.codigo}>
-                <a
-                  href={caminhoDoModulo(modulo.codigo)}
-                  onClick={(e) => seguir(e, aoNavegar)}
-                  aria-current={ativo && rota.tipo === 'modulo' && rota.subrota === '/' ? 'page' : undefined}
-                  className={`${ITEM} ${ativo ? ITEM_ATIVO : ITEM_INATIVO}`}
-                >
-                  <IconeDoModulo nome={modulo.icone} className="size-4 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{modulo.nome}</span>
-                  {!modulo.disponivel && (
-                    <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground" title="O módulo não respondeu à última verificação">
-                      <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
-                      indisponível
-                    </span>
-                  )}
-                </a>
-                {ativo && modulo.itensSubmenu.length > 0 && (
-                  <ul className="mt-0.5 mb-1 ml-[1.1rem] grid gap-0.5 border-l pl-2.5">
-                    {modulo.itensSubmenu.map((item) => {
-                      const itemAtivo = subrotaAtiva(rota, modulo.codigo, item.rota)
-                      return (
-                        <li key={item.rota}>
-                          <a
-                            href={caminhoDoModulo(modulo.codigo, item.rota)}
-                            onClick={(e) => seguir(e, aoNavegar)}
-                            aria-current={itemAtivo ? 'page' : undefined}
-                            className={`block rounded-md px-2.5 py-1.5 text-sm ${itemAtivo ? 'font-medium text-sidebar-accent-foreground' : 'text-muted-foreground hover:text-sidebar-foreground'}`}
-                          >
-                            {item.nome}
-                          </a>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </li>
-            )
-          })}
+      <nav aria-label="Principal" className="flex-1 overflow-x-hidden overflow-y-auto py-3">
+        <ul>
+          <Item href="/" rotulo="Início" icone={<House aria-hidden className="size-4 shrink-0" />} ativo={ativo === '/'} recolhida={recolhida} aoNavegar={aoNavegar} />
         </ul>
+
+        <Grupo titulo="Módulos" recolhida={recolhida}>
+          {menu.estado === 'carregando' &&
+            [0, 1, 2].map((i) => <li key={i} aria-hidden className="mx-3 my-2 h-5 animate-pulse rounded bg-white/10" />)}
+
+          {menu.estado === 'erro' && !recolhida && (
+            <li className="px-4 text-xs text-gray-400">
+              Não foi possível carregar o menu.{' '}
+              <button type="button" onClick={recarregarMenu} className="inline-flex items-center gap-1 font-medium text-brand-300 hover:text-white">
+                <RotateCw aria-hidden className="size-3" /> Tentar de novo
+              </button>
+            </li>
+          )}
+
+          {menu.estado === 'pronto' && menu.modulos.length === 0 && !recolhida && (
+            <li className="px-4 text-xs text-gray-400">Nenhum módulo liberado para o seu perfil.</li>
+          )}
+
+          {menu.estado === 'pronto' &&
+            menu.modulos.map((modulo) => {
+              const aberto = rota.tipo === 'modulo' && rota.codigo === modulo.codigo
+              return (
+                <Item
+                  key={modulo.codigo}
+                  href={caminhoDoModulo(modulo.codigo)}
+                  rotulo={modulo.nome}
+                  icone={<IconeDoModulo nome={modulo.icone} className="size-4 shrink-0" />}
+                  ativo={aberto}
+                  indisponivel={!modulo.disponivel}
+                  recolhida={recolhida}
+                  aoNavegar={aoNavegar}
+                >
+                  {aberto && !recolhida && modulo.itensSubmenu.length > 0 && (
+                    <ul className="mt-0.5 mb-1 ml-8 border-l border-white/10 pl-2">
+                      {modulo.itensSubmenu.map((item) => {
+                        const itemAtivo = subrotaAtiva(rota, modulo.codigo, item.rota)
+                        return (
+                          <li key={item.rota}>
+                            <Link
+                              href={caminhoDoModulo(modulo.codigo, item.rota)}
+                              onNavigate={aoNavegar}
+                              aria-current={itemAtivo ? 'page' : undefined}
+                              className={cx(
+                                'block rounded-lg px-2.5 py-1.5 text-xs transition-colors',
+                                itemAtivo ? 'font-semibold text-brand-400' : 'text-gray-400 hover:text-white',
+                              )}
+                            >
+                              {item.nome}
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </Item>
+              )
+            })}
+        </Grupo>
+
+        {administracao.length > 0 && (
+          <Grupo titulo="Administração" recolhida={recolhida}>
+            {administracao.map((item) => (
+              <Item
+                key={item.caminho}
+                href={item.caminho}
+                rotulo={item.nome}
+                icone={<item.icone aria-hidden className="size-4 shrink-0" />}
+                ativo={ativo === item.caminho}
+                recolhida={recolhida}
+                aoNavegar={aoNavegar}
+              />
+            ))}
+          </Grupo>
+        )}
+      </nav>
+
+      {aoAlternar && (
+        <button
+          type="button"
+          onClick={aoAlternar}
+          aria-label={recolhida ? 'Expandir o menu' : 'Recolher o menu'}
+          className={cx(
+            'flex h-11 shrink-0 items-center gap-2 border-t border-white/10 text-xs text-brand-300 transition-colors hover:bg-brand-900 hover:text-white',
+            recolhida ? 'justify-center' : 'px-4',
+          )}
+        >
+          {recolhida ? <ChevronRight aria-hidden className="size-4" /> : <><ChevronLeft aria-hidden className="size-4" /> Recolher</>}
+        </button>
       )}
-    </nav>
+    </div>
+  )
+}
+
+function Grupo({ titulo, recolhida, children }: { titulo: string; recolhida: boolean; children: ReactNode }) {
+  return (
+    <div className="mt-4">
+      {recolhida ? (
+        <hr aria-hidden className="mx-3 mb-2 border-white/10" />
+      ) : (
+        <p className="mb-1 px-4 text-xs font-semibold tracking-wider text-brand-400 uppercase">{titulo}</p>
+      )}
+      <ul aria-label={titulo}>{children}</ul>
+    </div>
+  )
+}
+
+interface ItemProps {
+  href: string
+  rotulo: string
+  icone: ReactNode
+  ativo: boolean
+  recolhida: boolean
+  indisponivel?: boolean
+  aoNavegar?: () => void
+  children?: ReactNode
+}
+
+function Item({ href, rotulo, icone, ativo, recolhida, indisponivel, aoNavegar, children }: ItemProps) {
+  return (
+    <li>
+      <Link
+        href={href}
+        onNavigate={aoNavegar}
+        aria-current={ativo ? 'page' : undefined}
+        title={recolhida ? rotulo + (indisponivel ? ' (indisponível)' : '') : undefined}
+        className={cx(
+          'relative mx-2 flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors',
+          recolhida ? 'justify-center px-0' : 'px-2.5',
+          ativo ? 'bg-brand-700 font-medium text-white' : 'text-gray-300 hover:bg-brand-800 hover:text-white',
+        )}
+      >
+        {icone}
+        <span className={recolhida ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{rotulo}</span>
+        {indisponivel && (
+          <span
+            title="O módulo não respondeu à última verificação da plataforma"
+            className={cx('size-1.5 shrink-0 rounded-full bg-red-400', recolhida && 'absolute top-1.5 right-2')}
+          >
+            <span className="sr-only">indisponível</span>
+          </span>
+        )}
+      </Link>
+      {children}
+    </li>
   )
 }

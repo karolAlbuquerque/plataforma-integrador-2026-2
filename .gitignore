@@ -10,6 +10,10 @@ target/
 node_modules/
 dist/
 
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
+
 # IDEs e sistema
 .idea/
 .vscode/

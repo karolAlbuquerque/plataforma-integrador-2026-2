@@ -1,15 +1,35 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Duas rotas só, sem biblioteca: "/" é o início e "/app/{codigo}/..." é a área de um módulo.
- * A parte depois do código é a rota interna do módulo, repassada ao iframe.
+ * Rotas da casca, sem biblioteca. "/app/{codigo}/..." é a área de um módulo: a parte depois do
+ * código é a rota interna dele, repassada ao iframe. As de administração e a conta são telas da
+ * própria casca; esqueci-senha e definir-senha são públicas.
  */
 export type Rota =
   | { tipo: 'inicio' }
   | { tipo: 'modulo'; codigo: string; subrota: string; versao: number }
+  | { tipo: 'conta' }
+  | { tipo: 'usuarios' }
+  | { tipo: 'perfis' }
+  | { tipo: 'perfil'; id: string }
+  | { tipo: 'equipes' }
+  | { tipo: 'esqueci-senha' }
+  | { tipo: 'definir-senha' }
+  | { tipo: 'nao-encontrada' }
 
 const EVENTO = 'plataforma:rota'
 const ROTA_DE_MODULO = /^\/app\/([a-z]+)(\/.*)?$/
+const ROTA_DE_PERFIL = /^\/admin\/perfis\/([0-9a-f-]{36})$/i
+
+const FIXAS: Record<string, Rota> = {
+  '/': { tipo: 'inicio' },
+  '/conta': { tipo: 'conta' },
+  '/admin/usuarios': { tipo: 'usuarios' },
+  '/admin/perfis': { tipo: 'perfis' },
+  '/admin/equipes': { tipo: 'equipes' },
+  '/esqueci-senha': { tipo: 'esqueci-senha' },
+  '/definir-senha': { tipo: 'definir-senha' },
+}
 
 /** Sobe a cada navegação feita pela casca; a navegação feita de dentro do módulo não mexe nele. */
 let versao = 0
@@ -21,8 +41,13 @@ function ler(): Rota {
   if (modulo) {
     return { tipo: 'modulo', codigo: modulo[1], subrota: (modulo[2] ?? '/') + window.location.search, versao }
   }
-  return { tipo: 'inicio' }
+  const semBarra = caminho.length > 1 ? caminho.replace(/\/+$/, '') : caminho
+  const perfil = ROTA_DE_PERFIL.exec(semBarra)
+  if (perfil) return { tipo: 'perfil', id: perfil[1].toLowerCase() }
+  return FIXAS[semBarra] ?? { tipo: 'nao-encontrada' }
 }
+
+export const ehPublica = (rota: Rota) => rota.tipo === 'esqueci-senha' || rota.tipo === 'definir-senha'
 
 function atualizar() {
   rotaAtual = ler()
@@ -38,12 +63,13 @@ export function caminhoDoModulo(codigo: string, subrota = '/') {
   return `/app/${codigo}${subrota.startsWith('/') ? subrota : `/${subrota}`}`
 }
 
-/** Navegação da casca: menu, cartões do início. Recarrega o iframe na rota pedida. */
+/** Navegação da casca: menu, cartões, botões. Recarrega o iframe do módulo na rota pedida. */
 export function navegar(caminho: string) {
   if (caminho === window.location.pathname + window.location.search) return
   versao++
   window.history.pushState(null, '', caminho)
   atualizar()
+  window.scrollTo(0, 0)
 }
 
 /**

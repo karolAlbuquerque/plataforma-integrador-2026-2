@@ -1,0 +1,3 @@
+Assunto: Nome fora do padrão
+
+Arquivo com maiúscula no nome: ignorado.

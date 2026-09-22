@@ -56,6 +56,11 @@ public class TratadorDeErros {
                 .body(Resposta.falha(e.getMessage()));
     }
 
+    @ExceptionHandler(ErroDeNegocio.class)
+    ResponseEntity<Resposta<Void>> erroDeNegocio(ErroDeNegocio e) {
+        return ResponseEntity.status(e.status()).body(Resposta.falha(e.getMessage(), List.of(e.comoErroDeCampo())));
+    }
+
     @ExceptionHandler(NaoEncontradoException.class)
     ResponseEntity<Resposta<Void>> naoEncontrado(NaoEncontradoException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Resposta.falha(e.getMessage()));

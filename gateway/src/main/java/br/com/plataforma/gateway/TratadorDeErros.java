@@ -3,6 +3,7 @@ package br.com.plataforma.gateway;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.nio.channels.ClosedChannelException;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,16 +16,24 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 
+import br.com.plataforma.gateway.EscritorDeErro.Erro;
 import reactor.core.publisher.Mono;
 
 /**
- * Erro no caminho até o módulo vira resposta no envelope. Módulo fora do ar — conexão recusada,
- * container inexistente — responde 503 "Módulo {codigo} indisponível.", e a casca mostra isso em
- * vez de uma página de erro do servidor. Roda antes do tratador padrão do Spring Boot (-1).
+ * Erro no caminho até o módulo vira resposta no envelope (Requisito RF48). Módulo fora do ar —
+ * conexão recusada, container inexistente — responde 503; módulo que não responde em 3 segundos
+ * (response-timeout do application.yml), 504. Nos dois casos o código do módulo vai em
+ * errors[0].detalhe, para a tela sinalizar o que faltou e mostrar o resto (Contrato §9.6).
+ * Roda antes do tratador padrão do Spring Boot (-1).
  */
 @Component
 @Order(-2)
 public class TratadorDeErros implements ErrorWebExceptionHandler {
+
+    static final String INDISPONIVEL = "MODULO_INDISPONIVEL";
+    static final String SEM_RESPOSTA = "MODULO_SEM_RESPOSTA";
+    /** Caminhos fora de /api, /public e /modulos são da casca. */
+    static final String CASCA = "casca";
 
     private static final Logger log = LoggerFactory.getLogger(TratadorDeErros.class);
     private static final Pattern CODIGO_NO_CAMINHO = Pattern.compile("^/(?:api|public|modulos)/([a-z]+)(?:/|$)");
@@ -41,28 +50,35 @@ public class TratadorDeErros implements ErrorWebExceptionHandler {
             return Mono.error(erro);
         }
         String caminho = troca.getRequest().getPath().value();
-        String destino = destino(caminho);
+        String modulo = modulo(caminho);
 
         if (falhaDeConexao(erro)) {
-            log.warn("{} indisponível ({}): {}", destino, caminho, erro.toString());
-            return erros.escrever(troca.getResponse(), 503, capitalizar(destino) + " indisponível.");
+            log.warn("{} indisponível ({}): {}", descrever(modulo), caminho, erro.toString());
+            return erros.escrever(troca.getResponse(), 503, capitalizar(descrever(modulo)) + " indisponível.",
+                    List.of(new Erro("modulo", INDISPONIVEL, modulo)));
         }
         if (erro instanceof ResponseStatusException status) {
             int codigo = status.getStatusCode().value();
-            String mensagem = switch (codigo) {
-                case 404 -> "Rota não encontrada.";
-                case 504 -> capitalizar(destino) + " não respondeu a tempo.";
-                default -> "Requisição não atendida.";
-            };
-            return erros.escrever(troca.getResponse(), codigo, mensagem);
+            if (codigo == HttpStatus.GATEWAY_TIMEOUT.value()) {
+                log.warn("{} não respondeu a tempo ({})", descrever(modulo), caminho);
+                return erros.escrever(troca.getResponse(), codigo, capitalizar(descrever(modulo)) + " não respondeu a tempo.",
+                        List.of(new Erro("modulo", SEM_RESPOSTA, modulo)));
+            }
+            return erros.escrever(troca.getResponse(), codigo,
+                    codigo == 404 ? "Rota não encontrada." : "Requisição não atendida.");
         }
         log.error("Erro inesperado no gateway em {}", caminho, erro);
         return erros.escrever(troca.getResponse(), HttpStatus.BAD_GATEWAY.value(), "Erro ao encaminhar a requisição.");
     }
 
-    static String destino(String caminho) {
+    /** "crm" para /api/crm/..., /public/crm/... e /modulos/crm/...; "casca" para o resto. */
+    static String modulo(String caminho) {
         Matcher codigo = CODIGO_NO_CAMINHO.matcher(caminho);
-        return codigo.find() ? "módulo " + codigo.group(1) : "plataforma";
+        return codigo.find() ? codigo.group(1) : CASCA;
+    }
+
+    private static String descrever(String modulo) {
+        return modulo.equals(CASCA) ? "plataforma" : "módulo " + modulo;
     }
 
     private static String capitalizar(String texto) {

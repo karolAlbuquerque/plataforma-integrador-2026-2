@@ -3,7 +3,7 @@ modulo: identity
 permissoes:
   - codigo: identity.acessar
     descricao: Ver o menu de administração da plataforma
-    perfisPadrao: [ADMINISTRADOR]
+    perfisPadrao: [ADMINISTRADOR, GESTOR]
 
   - codigo: identity.usuario.ver
     descricao: Ver a lista de usuários e seus perfis

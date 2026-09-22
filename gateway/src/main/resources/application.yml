@@ -16,6 +16,7 @@ spring:
         webflux:
           httpclient:
             connect-timeout: 3000              # módulo fora do ar vira 503 em 3 s, não em 30
+            response-timeout: 3s               # módulo que não responde vira 504 em 3 s (RF48, Contrato §9.6)
           # Sem trusted-proxies, de propósito. Com ela, o Netty do gateway passa a tomar o
           # X-Forwarded-For do cliente como endereço remoto, e o filtro nativo o repassa. Aqui quem
           # grava o X-Forwarded-For é CabecalhosDoNavegadorFiltro, com o IP da conexão TCP.
@@ -28,3 +29,6 @@ spring:
 
 gateway:
   modulos: crm,produtos,contratos,financeiro,chamados,marketing,landing,exemplo
+  # Origens dos fronts rodando fora do gateway em desenvolvimento, separadas por vírgula.
+  # Vazio desliga o CORS, como em produção (RF46).
+  cors-origens: ${CORS_ORIGENS:}

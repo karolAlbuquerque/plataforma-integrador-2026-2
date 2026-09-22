@@ -76,6 +76,12 @@ public class UsuarioRepositorio {
         jdbc.update("UPDATE identity.usuarios SET ultimo_login_em = now() WHERE id = ?", id);
     }
 
+    /** @param autor quem definiu; nulo quando foi pelo link de convite ou de recuperação */
+    public void definirSenha(UUID id, String hash, UUID autor) {
+        jdbc.update("UPDATE identity.usuarios SET senha_hash = ?, updated_at = now(), updated_by = ? WHERE id = ?",
+                hash, autor == null ? id : autor, id);
+    }
+
     /** Destinatário de notificação precisa existir e ser do tenant da mensagem. */
     public boolean pertenceAoTenant(UUID usuario, UUID tenant) {
         Boolean existe = jdbc.queryForObject("""

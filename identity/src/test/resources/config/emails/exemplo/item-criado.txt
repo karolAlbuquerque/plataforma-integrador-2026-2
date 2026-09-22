@@ -1,0 +1,5 @@
+Assunto: Item {{item}} criado
+
+Olá, {{nome}}.
+
+O item {{item}} foi criado no módulo de exemplo em {{data}}.
