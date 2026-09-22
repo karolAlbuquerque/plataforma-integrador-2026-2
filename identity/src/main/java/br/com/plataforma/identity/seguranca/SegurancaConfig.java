@@ -16,6 +16,8 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import br.com.plataforma.identity.auditoria.RegistroDeAcessoNegado;
+
 /**
  * O identity emite os tokens e também os valida, como qualquer módulo, com o JwtDecoder de
  * {@link ChavesJwt}. As rotas de sessão são públicas: quem chega nelas ainda não tem token.
@@ -38,12 +40,15 @@ public class SegurancaConfig {
     };
 
     @Bean
-    SecurityFilterChain filtrosDeSeguranca(HttpSecurity http, ObjectMapper mapper) throws Exception {
+    SecurityFilterChain filtrosDeSeguranca(HttpSecurity http, ObjectMapper mapper,
+                                           RegistroDeAcessoNegado acessosNegados) throws Exception {
         EscritorDeErro erros = new EscritorDeErro(mapper);
         AuthenticationEntryPoint naoAutenticado =
                 (requisicao, resposta, excecao) -> erros.escrever(resposta, 401, "Autenticação necessária.");
-        AccessDeniedHandler semPermissao =
-                (requisicao, resposta, excecao) -> erros.escrever(resposta, 403, "Sem permissão para esta operação.");
+        AccessDeniedHandler semPermissao = (requisicao, resposta, excecao) -> {
+            acessosNegados.registrar(requisicao);
+            erros.escrever(resposta, 403, "Sem permissão para esta operação.");
+        };
 
         http
                 // O access token vai no cabeçalho. O cookie de refresh é SameSite=Strict e restrito a
@@ -52,6 +57,9 @@ public class SegurancaConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(regras -> regras
                         .requestMatchers(ROTAS_PUBLICAS).permitAll()
+                        // Actuator só existe na porta de gerência, fora do gateway e do host (RNF04);
+                        // na porta da API, /actuator não tem nada e responde 404
+                        .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(servidor -> servidor
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(permissoesDoToken()))

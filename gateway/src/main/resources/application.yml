@@ -32,3 +32,17 @@ gateway:
   # Origens dos fronts rodando fora do gateway em desenvolvimento, separadas por vírgula.
   # Vazio desliga o CORS, como em produção (RF46).
   cors-origens: ${CORS_ORIGENS:}
+  # Requisições por minuto, por IP, em /public/** (RF45). Zero desliga.
+  limite-publico-por-minuto: ${LIMITE_PUBLICO_POR_MINUTO:120}
+
+# Métricas numa porta interna, que o compose não publica (RNF04). A 8080 continua só com as rotas.
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9080}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: gateway

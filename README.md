@@ -9,8 +9,8 @@ exemplo ficam no repositório [infra-integrador-2026](https://github.com/karolAl
 
 | Pasta | O que é | Porta |
 |---|---|---|
-| `identity/` | Serviço de identidade: login, JWT RS256, JWKS, usuários, perfis, equipes, convite e senha, menu, timeline, filas de `identity.entrada` | 8081 |
-| `gateway/` | Spring Cloud Gateway: roteia por caminho, valida o token em `/api/**`, CORS de desenvolvimento | 8080 |
+| `identity/` | Serviço de identidade: login, JWT RS256, JWKS, usuários, perfis, equipes, convite e senha, menu, timeline, notificações, auditoria, filas de `identity.entrada` | 8081 (métricas na 9081) |
+| `gateway/` | Spring Cloud Gateway: roteia por caminho, valida o token em `/api/**`, limita `/public/**` por IP, CORS de desenvolvimento | 8080 (métricas na 9080) |
 | `casca/` | React + Vite + Tailwind v4 no design system da Centinela: entrada, menu, administração, conta e o iframe de cada módulo | 3000 |
 | `e2e/` | Testes ponta a ponta com Playwright, contra o compose | — |
 | `dev/compose.build.yml` | Override que compila as três imagens a partir deste repositório | — |
@@ -58,7 +58,9 @@ cd e2e && npm ci && npx playwright install chromium && npm test
 ```
 
 O endereço precisa ser `localhost` (o cookie de refresh é `Secure`); `PLATAFORMA_URL` e
-`MAILPIT_URL` mudam os padrões `http://localhost:8080` e `http://localhost:8025`. Para usar o Chrome
+`MAILPIT_URL` mudam os padrões `http://localhost:8080` e `http://localhost:8025`. O teste do sino
+publica no RabbitMQ como o módulo de exemplo: sem `MQ_EXEMPLO_SENHA` (a do `.env` do infra) ele é
+pulado. Para usar o Chrome
 ou o Edge já instalados, sem `playwright install`: `CANAL_DO_NAVEGADOR=chrome npm test`. Cada
 execução cria um usuário convidado novo no banco de desenvolvimento.
 
@@ -113,6 +115,34 @@ tenant; (4) no perfil `dev`, semeia as Empresas A e B, um usuário por perfil e 
 `{modulo}.{nome}` de `emails/` do infra — só do próprio módulo de origem, e nunca os internos
 `identity.*`; modelo sem ponto usa o formato genérico da onda 1.
 
+**Remetente das mensagens:** todo pedido em `identity.entrada` precisa da propriedade AMQP
+`user_id = mq_{moduloOrigem}` — o RabbitMQ só aceita nela o usuário da conexão, e o identity manda
+para a `.dlq` o pedido sem ela ou em nome de outro módulo. `IDENTITY_EXIGIR_USER_ID=false` desliga a
+conferência, só em emergência.
+
+**Notificações** (RF54): `GET /api/identity/notificacoes` (`?naoLidas=true`), `/contagem`,
+`POST /{id}/lida` e `POST /lidas` — cada usuário vê e marca só as suas. A `rota` é relativa ao front
+do módulo que pediu (`/app/{moduloOrigem}{rota}` na casca).
+
+**Auditoria** (RF49, RF50): além das mudanças de acesso, o 403 é registrado (`acesso_negado`, com
+método e caminho, sem a query string). `GET /api/identity/auditoria` filtra por quem agiu, ação,
+entidade, registro e período, só no tenant do token; `GET /auditoria/exportar` devolve CSV (UTF-8
+com BOM, `;`, célula que viraria fórmula ganha apóstrofo), até 10 000 linhas, e fica registrada.
+
+**Superfície pública** (RF31): `GET /api/identity/tenants/resolver?subdominio=` devolve o tenant
+ativo do subdomínio para quem tem `identity.tenant.ver` — dada por `servicos` a landing, marketing,
+crm e contratos. É a única rota em que token de serviço dispensa `X-Tenant-Id`.
+
+**Sessão:** login e renovação trazem `sessaoExpiraEm`, o fim das oito horas — a renovação não o adia.
+
+**Limpeza diária** (03h30, horário de Brasília): tentativas de login com mais de 30 dias, ids de
+mensagens processadas com mais de 90, sessões expiradas há mais de 30 e links de recuperação
+vencidos há mais de 30. Convites e auditoria ficam.
+
+**Observabilidade** (RNF04): em container o log sai em JSON (ECS), com o `requestId` do gateway em
+cada linha; métricas do Prometheus em `http://identity:9081/actuator/prometheus`, porta que o
+gateway não encaminha e o compose não publica.
+
 **Banco:** SQL explícito com `JdbcTemplate` — o login acontece antes de haver tenant, e toda
 consulta a dado de tenant filtra `tenant_id` à mão. Migrations como `own_identity`; a aplicação
 roda como `usr_identity`, que não pode alterar nem apagar `audit_logs`.
@@ -135,6 +165,11 @@ roda como `usr_identity`, que não pode alterar nem apagar `audit_logs`.
 - Resolução de nomes com 1 s por consulta e endereço guardado por no máximo 10 s: módulo fora do
   compose vira 503 em ~1 s, e módulo recriado (IP novo) volta a responder em até 10 s — o DNS do
   Docker responde com TTL de 600 s.
+- **Limite por IP em `/public/**`** (RF45): `LIMITE_PUBLICO_POR_MINUTO`, padrão 120 por minuto, em
+  memória. Excedido, 429 no envelope com `Retry-After`; as rotas autenticadas não entram na conta.
+  O IP é o da conexão: com um proxy na frente, configurar antes os proxies confiáveis.
+- Uma linha de log por chamada de `/api` e `/public`: método, caminho sem query, status (inclusive
+  o 503 e o 504), duração, módulo e `requestId`. Métricas em `http://gateway:9080/actuator/prometheus`.
 - **O navegador não escolhe cabeçalhos sensíveis:** `X-Forwarded-For` é reescrito com o IP da
   conexão (o identity usa esse IP nos limites de tentativa) e `X-Tenant-Id` é removido — token de
   serviço fala com o módulo direto pela rede do Docker, não pelo gateway (decisão D6).
@@ -149,10 +184,17 @@ roda como `usr_identity`, que não pode alterar nem apagar `audit_logs`.
   a busca de telas (Ctrl K), as notificações e o menu do usuário.
 - Rotas: `/`, `/app/{codigo}/...` (módulo; o resto da URL é a rota interna, repassada ao iframe
   `/modulos/{codigo}/...`), `/conta`, `/admin/usuarios`, `/admin/perfis`, `/admin/perfis/{id}`
-  (matriz), `/admin/equipes`; públicas `/esqueci-senha` e `/definir-senha#token=...` — o token vai
+  (matriz), `/admin/equipes`, `/admin/auditoria` (filtros pela URL: `?entidadeId=`, `?usuarioId=`); públicas `/esqueci-senha` e `/definir-senha#token=...` — o token vai
   no fragmento e sai da barra de endereço logo ao abrir.
 - Access token só em memória; recarregar a página recupera a sessão pelo cookie. Renova um minuto
   antes de vencer, uma renovação por vez; a cada renovação relê permissões e menu.
+- **Fim da sessão sem perder a tela** (RF41): cinco minutos antes das oito horas, um modal pede a
+  senha; passado o fim, ou recusada a renovação, o modal volta sem "Agora não". A casca continua
+  montada — o iframe e o que o usuário preenchia ficam — e o módulo recebe o token novo.
+- **Sino** (RF54): contagem a cada 30 s com a aba visível; a lista (10 mais recentes) só ao abrir;
+  clicar marca como lida e abre o módulo na rota da notificação.
+- **Botão voltar dentro do módulo** (RF38): o módulo empilha a própria navegação no histórico do
+  iframe e a casca só troca a URL (`replaceState`) — um passo por clique.
 - Protocolo `postMessage` do Contrato §12: `plataforma:sessao`, `plataforma:token`,
   `plataforma:tema`; `modulo:pronto`, `modulo:altura`, `modulo:navegar`, `modulo:token-expirado`,
   `modulo:notificar`. Mensagem de outra origem ou de outra janela é ignorada.

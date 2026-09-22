@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { Bell, LogOut, Menu as IconeMenu, Moon, Search, Sun, UserRound } from 'lucide-react'
+import { LogOut, Menu as IconeMenu, Moon, Search, Sun, UserRound } from 'lucide-react'
 import { iniciais } from '@/components/ui'
 import { ADMINISTRACAO, useCasca, type EstadoDoMenu } from '../plataforma/contexto'
 import { useRota, type Rota } from '../plataforma/rotas'
 import { sair } from '../plataforma/sessao'
 import { Link, Popover } from './Link'
+import { SinoDeNotificacoes } from './Notificacoes'
 
 const MAC = /Mac|iPhone|iPad/.test(navigator.userAgent)
 
@@ -18,6 +19,7 @@ export function migalhas(rota: Rota, menu: EstadoDoMenu): string[] {
     case 'perfis': return adm('/admin/perfis')
     case 'perfil': return [...adm('/admin/perfis'), 'Permissões']
     case 'equipes': return adm('/admin/equipes')
+    case 'auditoria': return adm('/admin/auditoria')
     case 'modulo': {
       const modulo = menu.estado === 'pronto' ? menu.modulos.find((m) => m.codigo === rota.codigo) : undefined
       if (!modulo) return ['Módulos']
@@ -70,18 +72,7 @@ export function Cabecalho({ aoAbrirMenu, aoAbrirBusca }: { aoAbrirMenu: () => vo
         <kbd className="hidden rounded bg-superficie-2 px-1.5 py-0.5 font-sans text-xs text-texto-3 sm:inline">{MAC ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
 
-      <Popover rotulo="Notificações" classeDoGatilho={ICONE_DO_CABECALHO} gatilho={<Bell aria-hidden className="size-4.5" />}>
-        {() => (
-          <>
-            <p className="border-b border-borda px-4 py-3 text-sm font-semibold text-titulo">Notificações</p>
-            <div className="flex flex-col items-center px-6 py-8 text-center">
-              <Bell aria-hidden className="size-6 text-texto-3" />
-              <p className="mt-2 text-sm text-texto-2">Nenhuma notificação por enquanto.</p>
-              <p className="mt-1 text-xs text-texto-3">Os avisos dos módulos aparecem aqui.</p>
-            </div>
-          </>
-        )}
-      </Popover>
+      <SinoDeNotificacoes classeDoGatilho={ICONE_DO_CABECALHO} />
 
       <Popover
         rotulo="Menu do usuário"

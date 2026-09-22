@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Mail, Pencil, Plus, RotateCw, UserCheck, UserX, Users as IconeUsuarios, X } from 'lucide-react'
+import { Mail, Pencil, Plus, RotateCw, ScrollText, UserCheck, UserX, Users as IconeUsuarios, X } from 'lucide-react'
 import {
   Avatar, Badge, Button, Checkbox, DetailField, DetailSection, EmptyState, FilterBar, FormField, FormSection, Input,
   Modal, PageHeader, Pagination, SearchBar, Select, Spinner, statusBadge, Tabs,
@@ -8,6 +8,7 @@ import { ErroDaApi, api, consulta, mensagemDe } from '../../plataforma/api'
 import { avisar } from '../../plataforma/avisos'
 import { useCarregar, useCasca } from '../../plataforma/contexto'
 import { SITUACOES, dataHora, haQuanto, useAtraso } from '../../plataforma/formato'
+import { navegar } from '../../plataforma/rotas'
 import type { EquipeResumo, Pagina, PerfilResumo, UsuarioDaLista, UsuarioDetalhe, UsuarioSalvo } from '../../plataforma/tipos'
 
 const TAMANHO = 20
@@ -188,7 +189,7 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
   aoEditar: (usuario: UsuarioDetalhe) => void
   aoMudar: () => void
 }) {
-  const { eu } = useCasca()
+  const { eu, tem } = useCasca()
   const { carga, recarregar } = useCarregar(() => api.get<UsuarioDetalhe>(`/api/identity/usuarios/${id}`), [id])
   const [aba, setAba] = useState(0)
   const [confirmando, setConfirmando] = useState(false)
@@ -236,6 +237,13 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
             </div>
           </div>
           <div className="flex shrink-0 gap-1.5">
+            {/* RF26: quem mudou os perfis e as equipes deste usuário, e quando */}
+            {tem('identity.auditoria.ver') && (
+              <Button variant="secondary" size="sm" aria-label="Histórico na auditoria" title="Histórico na auditoria"
+                onClick={() => navegar(`/admin/auditoria?entidadeId=${usuario.id}`)}>
+                <ScrollText aria-hidden className="size-3" />
+              </Button>
+            )}
             {administra && (
               <Button variant="secondary" size="sm" onClick={() => aoEditar(usuario)}>
                 <Pencil aria-hidden className="size-3" /> Editar

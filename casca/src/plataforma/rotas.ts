@@ -13,6 +13,7 @@ export type Rota =
   | { tipo: 'perfis' }
   | { tipo: 'perfil'; id: string }
   | { tipo: 'equipes' }
+  | { tipo: 'auditoria' }
   | { tipo: 'esqueci-senha' }
   | { tipo: 'definir-senha' }
   | { tipo: 'nao-encontrada' }
@@ -27,6 +28,7 @@ const FIXAS: Record<string, Rota> = {
   '/admin/usuarios': { tipo: 'usuarios' },
   '/admin/perfis': { tipo: 'perfis' },
   '/admin/equipes': { tipo: 'equipes' },
+  '/admin/auditoria': { tipo: 'auditoria' },
   '/esqueci-senha': { tipo: 'esqueci-senha' },
   '/definir-senha': { tipo: 'definir-senha' },
 }

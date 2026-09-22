@@ -7,6 +7,7 @@ import { useRota, type Rota } from '../plataforma/rotas'
 import type { Sessao } from '../plataforma/sessao'
 import { aplicarTema } from '../plataforma/tema'
 import type { Eu, ModuloDoMenu, Tema } from '../plataforma/tipos'
+import { Auditoria } from '../telas/admin/Auditoria'
 import { Equipes } from '../telas/admin/Equipes'
 import { Matriz } from '../telas/admin/Matriz'
 import { Perfis } from '../telas/admin/Perfis'
@@ -18,6 +19,7 @@ import { AreaDoModulo } from './AreaDoModulo'
 import { Avisos } from './Avisos'
 import { BuscaRapida } from './BuscaRapida'
 import { Cabecalho } from './Cabecalho'
+import { AvisoDeFimDaSessao } from './FimDaSessao'
 import { BarraLateral } from './Menu'
 
 /** O menu é relido de tempos em tempos para refletir a disponibilidade dos módulos. */
@@ -135,6 +137,7 @@ export function Casca({ sessao }: { sessao: Sessao }) {
 
         <BuscaRapida aberta={buscaAberta} aoFechar={() => setBuscaAberta(false)} />
         <Avisos />
+        <AvisoDeFimDaSessao />
       </div>
     </ProvedorDaCasca>
   )
@@ -165,6 +168,8 @@ function Tela({ rota, menu, sessao, tema }: { rota: Rota; menu: EstadoDoMenu; se
       return <Protegida permissao="identity.perfil.ver"><Matriz key={rota.id} id={rota.id} /></Protegida>
     case 'equipes':
       return <Protegida permissao="identity.equipe.ver_resumo"><Equipes /></Protegida>
+    case 'auditoria':
+      return <Protegida permissao="identity.auditoria.ver"><Auditoria /></Protegida>
     default:
       return <PaginaNaoEncontrada />
   }

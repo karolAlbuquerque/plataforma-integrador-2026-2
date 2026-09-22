@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -32,6 +34,8 @@ import com.sun.net.httpserver.HttpServer;
  * Sem @AutoConfigureWebTestClient de propósito: com ele o cliente fala direto com o contexto, sem
  * HTTP, e a requisição chega sem endereço remoto — o X-Forwarded-For não teria o que gravar.
  */
+// Os testes do Spring Boot desligam a exportação de métricas; aqui ela é o que se testa
+@AutoConfigureObservability(tracing = false)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class GatewayTest {
 
@@ -39,6 +43,9 @@ class GatewayTest {
 
     @Autowired
     WebTestClient cliente;
+
+    @LocalManagementPort
+    int gerencia;
 
     @DynamicPropertySource
     static void rotas(DynamicPropertyRegistry registro) {
@@ -216,6 +223,21 @@ class GatewayTest {
         cliente.get().uri("/modulos/financeiro/").exchange()
                 .expectStatus().isNotFound()
                 .expectBody().jsonPath("$.message").isEqualTo("Rota não encontrada.");
+    }
+
+    @Test
+    void metricasSaoDaPortaDeGerenciaENaoDaBorda() {
+        // Uma chamada roteada antes, para existir a métrica do gateway
+        cliente.get().uri("/api/exemplo/health").exchange().expectStatus().isOk();
+
+        WebTestClient.bindToServer().baseUrl("http://localhost:" + gerencia).build()
+                .get().uri("/actuator/prometheus").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).value(corpo -> assertThat(corpo)
+                        .contains("application=\"gateway\"", "http_server_requests_seconds_count"));
+        // Na 8080, /actuator é só mais um caminho, que vai para a casca
+        cliente.get().uri("/actuator/prometheus").exchange()
+                .expectBody(String.class).value(corpo -> assertThat(corpo).contains("path=/actuator/prometheus"));
     }
 
     @Test

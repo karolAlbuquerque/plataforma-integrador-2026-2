@@ -40,3 +40,7 @@ permissoes:
   - codigo: identity.modulo.administrar
     descricao: Ativar, desativar e reordenar módulos no menu
     perfisPadrao: [ADMINISTRADOR]
+
+  - codigo: identity.tenant.ver
+    descricao: Descobrir o tenant de uma página pública pelo subdomínio (só token de serviço)
+    servicos: [landing, marketing, crm, contratos]

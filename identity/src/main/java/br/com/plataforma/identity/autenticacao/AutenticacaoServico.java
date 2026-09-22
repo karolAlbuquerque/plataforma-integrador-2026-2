@@ -2,6 +2,7 @@ package br.com.plataforma.identity.autenticacao;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -101,7 +102,8 @@ public class AutenticacaoServico {
             usuarios.registrarLogin(usuario.id());
             UsuarioAutenticado acessos = usuarios.carregarAcessos(usuario);
             String refresh = TokenOpaco.gerar();
-            Instant fimDaSessao = Instant.now().plus(duracaoMaximaDaSessao);
+            // Em segundos: o banco guarda microssegundos, e a renovação devolve o valor lido de lá
+            Instant fimDaSessao = Instant.now().plus(duracaoMaximaDaSessao).truncatedTo(ChronoUnit.SECONDS);
             refreshTokens.criar(usuario.id(), refresh, fimDaSessao, origem);
             SessaoEmitida sessao = new SessaoEmitida(emissor.paraUsuario(acessos), refresh, fimDaSessao,
                     UsuarioResumo.de(acessos));

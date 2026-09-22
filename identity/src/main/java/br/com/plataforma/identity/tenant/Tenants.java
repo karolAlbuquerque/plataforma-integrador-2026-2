@@ -27,6 +27,19 @@ public class Tenants {
         return Boolean.TRUE.equals(existe);
     }
 
+    public record TenantResolvido(UUID id, String nome) {
+    }
+
+    /** Tenant ativo com o subdomínio, para a superfície pública (Requisito RF31). */
+    public Optional<TenantResolvido> ativoPorSubdominio(String subdominio) {
+        return jdbc.query("""
+                SELECT id, coalesce(nome_fantasia, razao_social) AS nome
+                  FROM identity.tenants
+                 WHERE subdominio = ? AND ativo AND deleted_at IS NULL
+                """, (rs, linha) -> new TenantResolvido(rs.getObject("id", UUID.class), rs.getString("nome")),
+                subdominio).stream().findFirst();
+    }
+
     /** Nome exibido na barra da casca: o fantasia, se houver. */
     public Optional<String> nome(UUID id) {
         return jdbc.queryForList(

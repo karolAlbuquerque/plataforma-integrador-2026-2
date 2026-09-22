@@ -78,6 +78,34 @@ async function chamarComMensagem(caminho: string, opcoes: RequestInit): Promise<
   return envelope.message
 }
 
+/**
+ * Arquivo (Contrato §8.2): sucesso fora do envelope, erro dentro dele. O token vai no cabeçalho —
+ * nunca na URL, que fica em log e no histórico — e o arquivo é salvo a partir do blob recebido.
+ */
+async function baixar(caminho: string, nomePadrao: string, jaRenovou = false): Promise<void> {
+  const sessao = sessaoAtual()
+  const cabecalhos = new Headers()
+  if (sessao) cabecalhos.set('Authorization', `Bearer ${sessao.token}`)
+  let resposta: Response
+  try {
+    resposta = await fetch(caminho, { headers: cabecalhos, credentials: 'same-origin' })
+  } catch {
+    throw new ErroDaApi(0, null)
+  }
+  if (resposta.status === 401 && sessao && !jaRenovou && (await renovar())) return baixar(caminho, nomePadrao, true)
+  if (!resposta.ok) throw new ErroDaApi(resposta.status, await lerEnvelope<unknown>(resposta))
+
+  const nome = /filename="([^"]+)"/.exec(resposta.headers.get('Content-Disposition') ?? '')?.[1] ?? nomePadrao
+  const endereco = URL.createObjectURL(await resposta.blob())
+  const link = document.createElement('a')
+  link.href = endereco
+  link.download = nome
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(endereco), 1_000)
+}
+
 export const api = {
   get: <T>(caminho: string) => chamar<T>(caminho),
   post: <T>(caminho: string, corpo?: unknown) =>
@@ -86,6 +114,7 @@ export const api = {
   /** Operações cuja resposta é só a mensagem (excluir, encerrar sessão, trocar senha). */
   acao: (metodo: 'POST' | 'DELETE', caminho: string, corpo?: unknown) =>
     chamarComMensagem(caminho, { method: metodo, body: corpo === undefined ? undefined : JSON.stringify(corpo) }),
+  baixar,
 }
 
 /** Monta ?a=1&b=2 sem os parâmetros vazios. */
