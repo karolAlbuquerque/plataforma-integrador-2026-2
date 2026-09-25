@@ -14,6 +14,7 @@ exemplo ficam no repositório [infra-integrador-2026](https://github.com/karolAl
 | `casca/` | React + Vite + Tailwind v4 no design system da Centinela: entrada, menu, administração, conta e o iframe de cada módulo | 3000 |
 | `e2e/` | Testes ponta a ponta com Playwright, contra o compose | — |
 | `dev/compose.build.yml` | Override que compila as três imagens a partir deste repositório | — |
+| `docs/` | Requisitos com a situação de cada um, MER/DER e dicionário de dados, plano de testes | — |
 
 Stack: Java 21, Spring Boot 3.5, Maven, Spring Cloud 2025.0, PostgreSQL 16, RabbitMQ 4.1,
 React 19, TypeScript, Tailwind v4, lucide, Playwright.
