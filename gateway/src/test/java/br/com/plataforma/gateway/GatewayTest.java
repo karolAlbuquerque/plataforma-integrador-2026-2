@@ -123,14 +123,17 @@ class GatewayTest {
     @Test
     void rotasDeSessaoAbertaExigemTokenJaNoGateway() {
         for (String rota : new String[] {"/api/identity/auth/me", "/api/identity/auth/sessoes", "/api/identity/auth/senha",
-                "/api/identity/auth/qualquer-outra", "/api/identity/usuarios"}) {
+                "/api/identity/auth/qualquer-outra", "/api/identity/usuarios",
+                "/api/identity/auth/login/segundo-fator/outra"}) {
             cliente.post().uri(rota).exchange()
                     .expectStatus().isUnauthorized()
                     .expectBody().jsonPath("$.message").isEqualTo("Autenticação necessária.");
         }
         for (String rota : new String[] {"/api/identity/auth/refresh", "/api/identity/auth/logout",
                 "/api/identity/auth/token-servico", "/api/identity/auth/senha/recuperar",
-                "/api/identity/auth/senha/verificar", "/api/identity/auth/senha/definir"}) {
+                "/api/identity/auth/senha/verificar", "/api/identity/auth/senha/definir",
+                "/api/identity/auth/login/segundo-fator", "/api/identity/auth/login/segundo-fator/cadastro",
+                "/api/identity/auth/login/segundo-fator/cadastro/confirmar"}) {
             cliente.post().uri(rota).exchange()
                     .expectStatus().isOk()
                     .expectBody(String.class).value(corpo -> assertThat(corpo).contains("path=" + rota));

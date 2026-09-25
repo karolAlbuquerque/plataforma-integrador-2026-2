@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import amqp from 'amqplib'
-import { EMPRESA_A, SENHA, entrar, menu } from './apoio'
+import { EMPRESA_A, SENHA, codigoDe, entrar, menu, sessaoPelaApi } from './apoio'
 
 /**
  * Onda 3 na casca: o sino (RF54), a auditoria (RF50) e o aviso de fim da sessão (RF41).
@@ -36,8 +36,7 @@ async function pedirNotificacao(usuarioId: string, titulo: string) {
 test('notificação pedida por um módulo aparece no sino e leva à tela dele', async ({ page, request }) => {
   test.skip(!MQ_EXEMPLO_SENHA, 'defina MQ_EXEMPLO_SENHA para publicar como mq_exemplo')
   const email = 'administrador@empresa-a.dev'
-  const login = await request.post('/api/identity/auth/login', { data: { email, senha: SENHA } })
-  const usuarioId = (await login.json()).data.usuario.id as string
+  const usuarioId = (await sessaoPelaApi(request, email)).usuario.id
   const titulo = `Tarefa T-${Date.now()} venceu`
   await pedirNotificacao(usuarioId, titulo)
 
@@ -98,6 +97,9 @@ test('aviso de fim da sessão pede a senha sem tirar o módulo da tela', async (
   // De volta ao tempo real: a sessão nova vem do servidor com mais oito horas
   await page.clock.setSystemTime(new Date())
   await aviso.getByLabel(/^Senha de /).fill(SENHA)
+  await aviso.getByRole('button', { name: 'Continuar' }).click()
+  // Com a verificação em duas etapas, o código vem no mesmo modal (RF10)
+  await aviso.getByLabel('Código do aplicativo autenticador').fill(await codigoDe('administrador@empresa-a.dev'))
   await aviso.getByRole('button', { name: 'Continuar' }).click()
   await expect(aviso).toHaveCount(0)
   await expect(page).toHaveURL(/\/app\/exemplo\/$/)

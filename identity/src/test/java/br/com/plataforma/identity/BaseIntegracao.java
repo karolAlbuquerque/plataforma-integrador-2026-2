@@ -42,7 +42,8 @@ import jakarta.servlet.http.Cookie;
  * usuários de teste. RabbitMQ e SMTP são substituídos por mocks.
  *
  * Todo login sai de um IP aleatório (X-Forwarded-For), para um teste não disparar o limite de
- * tentativas por IP de outro.
+ * tentativas por IP de outro. O segundo fator fica não obrigatório, como no compose de
+ * desenvolvimento, para os testes que não tratam dele entrarem só com a senha.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -57,7 +58,9 @@ import jakarta.servlet.http.Cookie;
         "identity.url-publica=http://localhost:8080",
         "identity.admin-inicial.email=admin-inicial@centinela.dev",
         "identity.admin-inicial.nome=Administrador da Centinela",
-        "SVC_LANDING_SEGREDO=segredo-do-landing-para-teste"
+        "SVC_LANDING_SEGREDO=segredo-do-landing-para-teste",
+        // Como no compose de desenvolvimento; SegundoFatorTest liga, como em produção
+        "identity.segundo-fator.obrigatorio=false"
 })
 public abstract class BaseIntegracao {
 

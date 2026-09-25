@@ -11,6 +11,9 @@ permissoes:
   - codigo: identity.usuario.administrar
     descricao: Criar, editar, desativar usuários e trocar seus perfis
     perfisPadrao: [ADMINISTRADOR]
+  - codigo: identity.usuario.dados_pessoais
+    descricao: Exportar os dados pessoais de um usuário e anonimizar usuário desativado (LGPD)
+    perfisPadrao: [ADMINISTRADOR]
 
   - codigo: identity.perfil.ver
     descricao: Ver perfis e as permissões de cada um

@@ -1,0 +1,9 @@
+Assunto: Sua verificação em duas etapas foi redefinida
+
+Olá, {{nome}}.
+
+Um administrador da plataforma da {{empresa}} redefiniu a verificação em duas etapas da sua conta em {{quando}}. As sessões abertas foram encerradas e os códigos de recuperação antigos deixaram de valer.
+
+No próximo acesso, depois da senha, a plataforma vai pedir que você cadastre o aplicativo autenticador de novo.
+
+Se você não pediu isso, fale com o administrador da sua empresa.

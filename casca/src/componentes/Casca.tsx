@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { cx } from '@/components/ui'
-import { chamar } from '../plataforma/api'
+import { api, chamar } from '../plataforma/api'
 import { ProvedorDaCasca, type EstadoDoMenu } from '../plataforma/contexto'
 import { useRota, type Rota } from '../plataforma/rotas'
 import type { Sessao } from '../plataforma/sessao'
-import { aplicarTema } from '../plataforma/tema'
-import type { Eu, ModuloDoMenu, Tema } from '../plataforma/tipos'
+import { aoMudarTemaDoSistema, aplicarPreferencia, preferenciaLocal } from '../plataforma/tema'
+import type { Eu, ModuloDoMenu, PreferenciaDeTema, Tema } from '../plataforma/tipos'
 import { Auditoria } from '../telas/admin/Auditoria'
 import { Equipes } from '../telas/admin/Equipes'
 import { Matriz } from '../telas/admin/Matriz'
@@ -37,7 +37,8 @@ function lerRecolhido() {
 /** Barra lateral, cabeçalho e área de conteúdo. Só aparece com sessão aberta. */
 export function Casca({ sessao }: { sessao: Sessao }) {
   const rota = useRota()
-  const [tema, setTema] = useState<Tema>(() => (document.documentElement.dataset.tema === 'escuro' ? 'escuro' : 'claro'))
+  const [preferenciaDeTema, setPreferenciaDeTema] = useState<PreferenciaDeTema>(() => sessao.usuario.tema ?? preferenciaLocal())
+  const [tema, setTema] = useState<Tema>(() => aplicarPreferencia(preferenciaDeTema))
   const [menu, setMenu] = useState<EstadoDoMenu>({ estado: 'carregando' })
   const [eu, setEu] = useState<Eu | null>(null)
   const [gavetaAberta, setGavetaAberta] = useState(false)
@@ -79,13 +80,28 @@ export function Casca({ sessao }: { sessao: Sessao }) {
     return () => window.removeEventListener('keydown', fechar)
   }, [gavetaAberta])
 
-  const alternarTema = useCallback(() => {
-    setTema((atual) => {
-      const novo: Tema = atual === 'claro' ? 'escuro' : 'claro'
-      aplicarTema(novo)
-      return novo
-    })
+  // A preferência vem da conta (RF40) no login e a cada renovação — vale em qualquer navegador
+  useEffect(() => {
+    if (sessao.usuario.tema) setPreferenciaDeTema(sessao.usuario.tema)
+  }, [sessao.usuario.tema])
+
+  useEffect(() => {
+    setTema(aplicarPreferencia(preferenciaDeTema))
+    if (preferenciaDeTema !== 'sistema') return
+    // "sistema": o tema acompanha o sistema operacional, e o módulo recebe plataforma:tema de novo
+    return aoMudarTemaDoSistema(() => setTema(aplicarPreferencia('sistema')))
+  }, [preferenciaDeTema])
+
+  const definirPreferenciaDeTema = useCallback((preferencia: PreferenciaDeTema) => {
+    setPreferenciaDeTema(preferencia)
+    // Falhou ao guardar: vale neste navegador até o próximo login
+    api.put('/api/identity/conta/tema', { tema: preferencia }).catch(() => undefined)
   }, [])
+
+  const alternarTema = useCallback(
+    () => definirPreferenciaDeTema(tema === 'claro' ? 'escuro' : 'claro'),
+    [tema, definirPreferenciaDeTema],
+  )
 
   function alternarRecolhida() {
     setRecolhida((atual) => {
@@ -100,8 +116,8 @@ export function Casca({ sessao }: { sessao: Sessao }) {
 
   const tem = useCallback((permissao: string) => eu?.permissoes.includes(permissao) ?? false, [eu])
   const contexto = useMemo(
-    () => ({ sessao, eu, menu, tema, alternarTema, recarregarMenu: carregarMenu, tem }),
-    [sessao, eu, menu, tema, alternarTema, carregarMenu, tem],
+    () => ({ sessao, eu, menu, tema, preferenciaDeTema, definirPreferenciaDeTema, alternarTema, recarregarMenu: carregarMenu, tem }),
+    [sessao, eu, menu, tema, preferenciaDeTema, definirPreferenciaDeTema, alternarTema, carregarMenu, tem],
   )
 
   return (

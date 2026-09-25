@@ -2,9 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { App } from './App'
-import { aplicarTema, temaInicial } from './plataforma/tema'
+import { aplicarPreferencia, preferenciaLocal } from './plataforma/tema'
 
-aplicarTema(temaInicial())
+// Antes do login vale a última preferência deste navegador; depois, a da conta (RF40)
+aplicarPreferencia(preferenciaLocal())
 
 createRoot(document.getElementById('raiz')!).render(
   <StrictMode>

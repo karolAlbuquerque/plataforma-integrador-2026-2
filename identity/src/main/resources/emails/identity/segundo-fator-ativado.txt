@@ -1,0 +1,9 @@
+Assunto: Verificação em duas etapas ativada na sua conta
+
+Olá, {{nome}}.
+
+A verificação em duas etapas foi ativada na sua conta da plataforma da {{empresa}} em {{quando}}, com um novo aplicativo autenticador.
+
+A partir de agora, depois da senha, a plataforma pede o código de seis dígitos do aplicativo. Guarde os códigos de recuperação num lugar seguro: eles são a única forma de entrar se você perder o celular.
+
+Se não foi você, avise o administrador da sua empresa imediatamente.

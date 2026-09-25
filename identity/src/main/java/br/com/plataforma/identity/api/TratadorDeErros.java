@@ -55,7 +55,9 @@ public class TratadorDeErros {
 
     @ExceptionHandler(NaoAutenticadoException.class)
     ResponseEntity<Resposta<Void>> naoAutenticado(NaoAutenticadoException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Resposta.falha(e.getMessage()));
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.erro() == null
+                ? Resposta.falha(e.getMessage())
+                : Resposta.falha(e.getMessage(), List.of(e.erro())));
     }
 
     @ExceptionHandler(MuitasTentativasException.class)

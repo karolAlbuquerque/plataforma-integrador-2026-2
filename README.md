@@ -3,7 +3,7 @@
 Plataforma e Controle de Usuários — **Grupo 2** do Projeto Integrador 2026. É a fundação dos oito
 módulos: login, token, permissões, menu, gateway e a casca que embute o front de cada módulo.
 
-As regras vêm do **Contrato de Integração dos Módulos** (v0.6, com a v0.7 em ratificação). Contratos
+As regras vêm do **Contrato de Integração dos Módulos** (v0.7, em vigor desde 25/09/2026). Contratos
 de API, listas de permissões, registros de menu, modelos de e-mail, `docker-compose` e o módulo de
 exemplo ficam no repositório [infra-integrador-2026](https://github.com/karolAlbuquerque/infra-integrador-2026).
 
@@ -62,7 +62,13 @@ O endereço precisa ser `localhost` (o cookie de refresh é `Secure`); `PLATAFOR
 publica no RabbitMQ como o módulo de exemplo: sem `MQ_EXEMPLO_SENHA` (a do `.env` do infra) ele é
 pulado. Para usar o Chrome
 ou o Edge já instalados, sem `playwright install`: `CANAL_DO_NAVEGADOR=chrome npm test`. Cada
-execução cria um usuário convidado novo no banco de desenvolvimento.
+execução cria usuários novos no banco.
+
+**O e2e roda com o segundo fator obrigatório** (`IDENTITY_EXIGIR_SEGUNDO_FATOR=true` no ambiente
+do `docker compose up`): o primeiro login de cada usuário de teste cadastra o autenticador e o
+segredo fica em `e2e/.segundo-fator.json` (fora do git). Use um banco só para isso — por exemplo
+`docker compose -p e2e ...`, que tem volumes próprios —, porque os usuários semeados passam a
+pedir o código; banco recriado, apague o arquivo.
 
 Para desenvolver a casca com recarga automática: pare o container `casca`, rode `npm run dev` em
 `casca/` e abra http://localhost:3000 — `/api` e `/modulos` vão para o gateway, sem o cabeçalho
@@ -70,11 +76,12 @@ Para desenvolver a casca com recarga automática: pare o container `casca`, rode
 
 ## Identity
 
-**Rotas** (contrato completo em `infra-integrador-2026/contratos/identity.yaml`, v0.2.0):
+**Rotas** (contrato completo em `infra-integrador-2026/contratos/identity.yaml`, v0.4.0):
 
 | Rota | Acesso |
 |---|---|
-| `POST /api/identity/auth/login` | público; 5 falhas em 15 min por e-mail ou por IP → 429 |
+| `POST /api/identity/auth/login` | público; 5 falhas em 15 min por e-mail ou por IP → 429; com segundo fator, devolve um desafio |
+| `POST /api/identity/auth/login/segundo-fator`, `.../cadastro`, `.../cadastro/confirmar` | público, com o desafio; código do aplicativo ou de recuperação, e o cadastro no primeiro acesso |
 | `POST /api/identity/auth/refresh` | cookie `refresh_token`; troca o cookie, mantém o fim da sessão (8 h) |
 | `POST /api/identity/auth/logout?todas=` | cookie; revoga esta sessão ou todas |
 | `GET /api/identity/auth/me` | token de usuário |
@@ -84,6 +91,10 @@ Para desenvolver a casca com recarga automática: pare o container `casca`, rode
 | `POST /api/identity/auth/senha` | token + cookie; troca a senha e encerra as outras sessões |
 | `GET/DELETE /api/identity/auth/sessoes`, `DELETE .../sessoes/{id}` | token + cookie; sessões ativas do próprio usuário |
 | `GET/PUT /api/identity/conta` | token de usuário; nome e telefone |
+| `PUT /api/identity/conta/tema`, `GET /conta/dados-pessoais`, `/conta/segundo-fator` (situação, troca de aparelho, códigos) | token de usuário |
+| `POST /api/identity/usuarios/{id}/segundo-fator/redefinir` | `identity.usuario.administrar` |
+| `GET /api/identity/usuarios/{id}/dados-pessoais`, `POST .../anonimizar` | `identity.usuario.dados_pessoais` |
+| `GET /api/identity/busca?q=` | `identity.usuario.ver`; parte do identity na busca global |
 | `/api/identity/usuarios` (lista, detalhe, cadastro, edição, desativar, reativar, convite) | `identity.usuario.ver` / `identity.usuario.administrar` |
 | `/api/identity/perfis` (lista, matriz, criar, editar, duplicar, excluir) e `GET /permissoes` | `identity.perfil.ver` / `identity.perfil.administrar` |
 | `/api/identity/equipes` (lista, detalhe, membros, criar, editar, excluir) | `identity.equipe.ver_resumo` / `identity.equipe.administrar` |
@@ -135,9 +146,30 @@ crm e contratos. É a única rota em que token de serviço dispensa `X-Tenant-Id
 
 **Sessão:** login e renovação trazem `sessaoExpiraEm`, o fim das oito horas — a renovação não o adia.
 
+**Verificação em duas etapas** (RF10, onda 4): obrigatória para todo usuário. Com a senha certa, o
+login devolve um `desafio` (5 minutos, sem cookie nem token); a sessão sai com o código TOTP do
+aplicativo (RFC 6238, seis dígitos, 30 s, um passo de tolerância, código já usado recusado) ou com
+um dos dez códigos de recuperação de uso único. No primeiro acesso o usuário cadastra o aplicativo
+pelo QR Code. Não existe "desativar": só trocar de aparelho em Minha conta (senha + código) ou o
+administrador redefinir. Erros contam no limite do login; cinco no mesmo desafio o encerram. O
+segredo fica cifrado (AES-GCM) com `SEGUNDO_FATOR_CHAVE` — sem ela o identity só sobe no perfil
+`dev`. `IDENTITY_EXIGIR_SEGUNDO_FATOR` vazio desliga a obrigação no perfil `dev` (os usuários de
+teste dos outros grupos entram com um POST só) e liga nos demais; `true`/`false` forçam. Ativar,
+trocar, redefinir e usar código de recuperação avisam o dono por e-mail e ficam na auditoria.
+
+**Tema** (RF40): `claro`, `escuro` ou `sistema`, guardado na conta e devolvido no login, na
+renovação e em `/auth/me`.
+
+**Dados pessoais** (RF56, LGPD art. 18): exportação em JSON (cadastro, perfis, equipes, sessões,
+tentativas de login, notificações e o que a pessoa fez) pelo próprio usuário ou por quem tem
+`identity.usuario.dados_pessoais`. A anonimização exige o usuário desativado e o e-mail digitado de
+novo: nome e e-mail viram marcadores, o resto é apagado, o `id` fica e a auditoria não muda. Publica
+`identity.usuario.anonimizado` em `identity.eventos` — o primeiro evento do identity.
+
 **Limpeza diária** (03h30, horário de Brasília): tentativas de login com mais de 30 dias, ids de
-mensagens processadas com mais de 90, sessões expiradas há mais de 30 e links de recuperação
-vencidos há mais de 30. Convites e auditoria ficam.
+mensagens processadas com mais de 90, sessões expiradas há mais de 30, links de recuperação
+vencidos há mais de 30 e desafios do segundo fator vencidos há mais de um dia. Convites e auditoria
+ficam.
 
 **Observabilidade** (RNF04): em container o log sai em JSON (ECS), com o `requestId` do gateway em
 cada linha; métricas do Prometheus em `http://identity:9081/actuator/prometheus`, porta que o
@@ -181,7 +213,16 @@ roda como `usr_identity`, que não pode alterar nem apagar `audit_logs`.
   `Badge`...). Tema em `src/tema/plataforma.css`, igual ao `ui/plataforma.css` do infra, com
   neutros semânticos para o tema escuro.
 - Barra lateral recolhível com os módulos do registro e a Administração; cabeçalho com o caminho,
-  a busca de telas (Ctrl K), as notificações e o menu do usuário.
+  a busca (Ctrl K), as notificações e o menu do usuário.
+- **Busca global** (RF55, Contrato §8.6): além das telas, a partir de duas letras o Ctrl K consulta
+  em paralelo os módulos do menu com `busca: true` e disponíveis, e o identity (usuários) — 250 ms
+  entre teclas, 3 s por módulo; o que falha, demora ou responde 403 fica de fora. Resultados
+  agrupados por módulo, abrindo `/app/{codigo}{rota}`.
+- **Entrada em duas etapas** (RF10): senha; depois o código do aplicativo (ou "perdi o celular" e um
+  código de recuperação). No primeiro acesso, QR Code gerado no navegador (pacote `qrcode`, carregado
+  só nessa hora), primeiro código e os dez códigos de recuperação para copiar ou baixar. O modal de
+  fim da sessão também pede o código. Minha conta: trocar de aparelho, gerar códigos novos, baixar
+  os próprios dados e o tema (claro, escuro ou sistema), guardado na conta.
 - Rotas: `/`, `/app/{codigo}/...` (módulo; o resto da URL é a rota interna, repassada ao iframe
   `/modulos/{codigo}/...`), `/conta`, `/admin/usuarios`, `/admin/perfis`, `/admin/perfis/{id}`
   (matriz), `/admin/equipes`, `/admin/auditoria` (filtros pela URL: `?entidadeId=`, `?usuarioId=`); públicas `/esqueci-senha` e `/definir-senha#token=...` — o token vai
@@ -191,6 +232,8 @@ roda como `usr_identity`, que não pode alterar nem apagar `audit_logs`.
 - **Fim da sessão sem perder a tela** (RF41): cinco minutos antes das oito horas, um modal pede a
   senha; passado o fim, ou recusada a renovação, o modal volta sem "Agora não". A casca continua
   montada — o iframe e o que o usuário preenchia ficam — e o módulo recebe o token novo.
+- Administração de usuários: redefinir a verificação em duas etapas, exportar dados pessoais e
+  anonimizar quem já foi desativado (confirmação digitando o e-mail); `?usuario={id}` abre o detalhe.
 - **Sino** (RF54): contagem a cada 30 s com a aba visível; a lista (10 mais recentes) só ao abrir;
   clicar marca como lida e abre o módulo na rota da notificação.
 - **Botão voltar dentro do módulo** (RF38): o módulo empilha a própria navegação no histórico do

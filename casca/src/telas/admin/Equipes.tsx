@@ -217,7 +217,7 @@ function FormularioDeEquipe({ equipe, aoFechar, aoSalvar }: { equipe?: EquipeDet
     [buscaAtrasada],
   )
   const candidatos = encontrados.carga.tipo === 'pronto'
-    ? encontrados.carga.dados.filter((u) => u.situacao !== 'inativo' && !membros.some((m) => m.id === u.id))
+    ? encontrados.carga.dados.filter((u) => u.situacao !== 'inativo' && u.situacao !== 'anonimizado' && !membros.some((m) => m.id === u.id))
     : []
 
   async function salvar(evento: FormEvent) {

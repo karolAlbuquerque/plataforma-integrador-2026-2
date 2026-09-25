@@ -10,7 +10,9 @@ public record UsuarioDeLogin(
         String email,
         String senhaHash,
         boolean ativo,
-        boolean tenantAtivo) {
+        boolean tenantAtivo,
+        boolean segundoFatorAtivo,
+        String tema) {
 
     /** Usuário desativado ou de tenant desativado não entra, nem renova sessão (RF27). */
     public boolean podeEntrar() {

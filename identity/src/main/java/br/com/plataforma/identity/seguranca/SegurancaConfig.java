@@ -28,6 +28,9 @@ public class SegurancaConfig {
 
     private static final String[] ROTAS_PUBLICAS = {
             "/api/identity/auth/login",
+            "/api/identity/auth/login/segundo-fator",
+            "/api/identity/auth/login/segundo-fator/cadastro",
+            "/api/identity/auth/login/segundo-fator/cadastro/confirmar",
             "/api/identity/auth/refresh",
             "/api/identity/auth/logout",
             "/api/identity/auth/token-servico",

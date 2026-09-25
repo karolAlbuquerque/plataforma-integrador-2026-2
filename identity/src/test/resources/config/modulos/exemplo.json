@@ -8,6 +8,7 @@
   "permissaoMenu": "exemplo.acessar",
   "ordemMenu": 900,
   "healthcheck": "/api/exemplo/health",
+  "busca": true,
   "itensSubmenu": [
     { "rota": "/", "nome": "Itens", "permissao": "exemplo.item.ver" },
     { "rota": "/lixeira", "nome": "Lixeira", "permissao": "exemplo.item.excluir" }

@@ -17,18 +17,25 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import br.com.plataforma.identity.api.Resposta;
+import br.com.plataforma.identity.autenticacao.Formatos.CodigoDoDesafio;
 import br.com.plataforma.identity.autenticacao.Formatos.CredencialDeServico;
 import br.com.plataforma.identity.autenticacao.Formatos.Credenciais;
+import br.com.plataforma.identity.autenticacao.Formatos.DesafioDeCadastro;
+import br.com.plataforma.identity.autenticacao.Formatos.DesafioDeSegundoFator;
+import br.com.plataforma.identity.autenticacao.Formatos.DesafioEmitido;
 import br.com.plataforma.identity.autenticacao.Formatos.Eu;
 import br.com.plataforma.identity.autenticacao.Formatos.SessaoAberta;
 import br.com.plataforma.identity.autenticacao.Formatos.SessaoEmitida;
 import br.com.plataforma.identity.autenticacao.Formatos.TenantResumo;
 import br.com.plataforma.identity.autenticacao.Formatos.TokenDeServico;
 import br.com.plataforma.identity.autenticacao.Formatos.UsuarioResumo;
+import br.com.plataforma.identity.api.ErroDeNegocio;
+import br.com.plataforma.identity.segundofator.SegundoFator.Cadastro;
 import br.com.plataforma.identity.seguranca.TokenEmitido;
 import br.com.plataforma.identity.seguranca.Usuarios;
 import br.com.plataforma.identity.tenant.TenantContexto;
 import br.com.plataforma.identity.tenant.Tenants;
+import br.com.plataforma.identity.usuario.UsuarioRepositorio;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
@@ -43,18 +50,61 @@ public class AutenticacaoController {
     private final AutenticacaoServico servico;
     private final CookieDeRefresh cookies;
     private final Tenants tenants;
+    private final UsuarioRepositorio usuarios;
 
-    public AutenticacaoController(AutenticacaoServico servico, CookieDeRefresh cookies, Tenants tenants) {
+    public AutenticacaoController(AutenticacaoServico servico, CookieDeRefresh cookies, Tenants tenants,
+                                  UsuarioRepositorio usuarios) {
         this.servico = servico;
         this.cookies = cookies;
         this.tenants = tenants;
+        this.usuarios = usuarios;
     }
 
+    /**
+     * Devolve a sessão ou, se falta o segundo fator, um {@link DesafioDeSegundoFator} — sem cookie e
+     * sem access token. A casca distingue pelo campo "desafio".
+     */
     @PostMapping("/login")
-    public ResponseEntity<Resposta<SessaoAberta>> entrar(@Valid @RequestBody Credenciais corpo,
-                                                         HttpServletRequest requisicao) {
-        SessaoEmitida sessao = servico.entrar(corpo.email(), corpo.senha(), Origem.de(requisicao));
-        return comSessao(sessao);
+    public ResponseEntity<? extends Resposta<?>> entrar(@Valid @RequestBody Credenciais corpo,
+                                                        HttpServletRequest requisicao) {
+        return switch (servico.entrar(corpo.email(), corpo.senha(), Origem.de(requisicao))) {
+            case SessaoEmitida sessao -> comSessao(sessao);
+            case DesafioEmitido desafio -> ResponseEntity.ok()
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .body(Resposta.ok(DesafioDeSegundoFator.de(desafio)));
+        };
+    }
+
+    /** Segunda etapa do login: código do aplicativo ou código de recuperação (um dos dois). */
+    @PostMapping("/login/segundo-fator")
+    public ResponseEntity<Resposta<SessaoAberta>> concluirComCodigo(@Valid @RequestBody CodigoDoDesafio corpo,
+                                                                    HttpServletRequest requisicao) {
+        boolean temCodigo = corpo.codigo() != null && !corpo.codigo().isBlank();
+        boolean temRecuperacao = corpo.codigoRecuperacao() != null && !corpo.codigoRecuperacao().isBlank();
+        if (temCodigo == temRecuperacao) {
+            throw ErroDeNegocio.invalido("codigo", "CODIGO_OBRIGATORIO",
+                    "Informe o código do aplicativo ou um código de recuperação.");
+        }
+        return comSessao(servico.concluirComCodigo(corpo.desafio(), temCodigo ? corpo.codigo() : null,
+                temRecuperacao ? corpo.codigoRecuperacao() : null, Origem.de(requisicao)));
+    }
+
+    /** Primeiro acesso com o segundo fator obrigatório: o segredo e a URI do QR Code. */
+    @PostMapping("/login/segundo-fator/cadastro")
+    public ResponseEntity<Resposta<Cadastro>> iniciarCadastro(@Valid @RequestBody DesafioDeCadastro corpo) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(Resposta.ok(servico.iniciarCadastro(corpo.desafio())));
+    }
+
+    /** O primeiro código confere: sessão aberta e os dez códigos de recuperação, que só aparecem aqui. */
+    @PostMapping("/login/segundo-fator/cadastro/confirmar")
+    public ResponseEntity<Resposta<SessaoAberta>> confirmarCadastro(@Valid @RequestBody CodigoDoDesafio corpo,
+                                                                    HttpServletRequest requisicao) {
+        if (corpo.codigo() == null || corpo.codigo().isBlank()) {
+            throw ErroDeNegocio.invalido("codigo", "CODIGO_OBRIGATORIO", "Informe o código do aplicativo.");
+        }
+        return comSessao(servico.confirmarCadastro(corpo.desafio(), corpo.codigo(), Origem.de(requisicao)));
     }
 
     @PostMapping("/refresh")
@@ -85,8 +135,9 @@ public class AutenticacaoController {
             throw new AccessDeniedException("Token de serviço não representa um usuário.");
         }
         UUID tenant = TenantContexto.exigir();
-        UsuarioResumo usuario = new UsuarioResumo(Usuarios.idDe(jwt), jwt.getClaimAsString("nome"),
-                jwt.getClaimAsString("email"), tenant);
+        UUID id = Usuarios.idDe(jwt);
+        UsuarioResumo usuario = new UsuarioResumo(id, jwt.getClaimAsString("nome"), jwt.getClaimAsString("email"),
+                tenant, usuarios.tema(id));
         return Resposta.ok(new Eu(
                 usuario,
                 new TenantResumo(tenant, tenants.nome(tenant).orElse(null)),

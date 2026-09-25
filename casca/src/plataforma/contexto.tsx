@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { ScrollText, ShieldCheck, Users, UsersRound, type LucideIcon } from 'lucide-react'
 import { ErroDaApi, mensagemDe } from './api'
 import type { Sessao } from './sessao'
-import type { Eu, ModuloDoMenu, Tema } from './tipos'
+import type { Eu, ModuloDoMenu, PreferenciaDeTema, Tema } from './tipos'
 
 export type EstadoDoMenu =
   | { estado: 'carregando' }
@@ -14,7 +14,11 @@ export interface ContextoDaCasca {
   /** Dados do /auth/me — relidos a cada renovação, porque as permissões podem ter mudado (RF15). */
   eu: Eu | null
   menu: EstadoDoMenu
+  /** O tema aplicado agora. */
   tema: Tema
+  /** A escolha guardada na conta (RF40); "sistema" acompanha o sistema operacional. */
+  preferenciaDeTema: PreferenciaDeTema
+  definirPreferenciaDeTema: (preferencia: PreferenciaDeTema) => void
   alternarTema: () => void
   recarregarMenu: () => void
   /** A permissão está no token atual. Esconder um botão não substitui a checagem do servidor. */
