@@ -6,10 +6,8 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +18,7 @@ import br.com.plataforma.identity.email.ModelosDeEmail;
 import br.com.plataforma.identity.mensageria.Mensagem.DadosEmail;
 import br.com.plataforma.identity.mensageria.Mensagem.DadosNotificacao;
 import br.com.plataforma.identity.mensageria.Mensagem.DadosTimeline;
+import br.com.plataforma.identity.notificacao.Notificacoes;
 import br.com.plataforma.identity.tenant.Tenants;
 import br.com.plataforma.identity.timeline.Timeline;
 import br.com.plataforma.identity.usuario.UsuarioRepositorio;
@@ -49,17 +48,17 @@ public class ProcessadorDePedidos {
     private final Tenants tenants;
     private final UsuarioRepositorio usuarios;
     private final Timeline timeline;
-    private final JdbcTemplate jdbc;
+    private final Notificacoes notificacoes;
     private final CorreioDeSistema correio;
     private final ModelosDeEmail modelos;
 
     public ProcessadorDePedidos(EventosProcessados processados, Tenants tenants, UsuarioRepositorio usuarios,
-                                Timeline timeline, JdbcTemplate jdbc, CorreioDeSistema correio, ModelosDeEmail modelos) {
+                                Timeline timeline, Notificacoes notificacoes, CorreioDeSistema correio, ModelosDeEmail modelos) {
         this.processados = processados;
         this.tenants = tenants;
         this.usuarios = usuarios;
         this.timeline = timeline;
-        this.jdbc = jdbc;
+        this.notificacoes = notificacoes;
         this.correio = correio;
         this.modelos = modelos;
     }
@@ -89,6 +88,7 @@ public class ProcessadorDePedidos {
                 "dados.categoria precisa ser uma das categorias do contrato.");
         exigir(temTexto(dados.titulo(), 120), "dados.titulo é obrigatório, com até 120 caracteres.");
         exigir(dados.texto() == null || dados.texto().length() <= 500, "dados.texto pode ter até 500 caracteres.");
+        exigir(dados.rota() == null || dados.rota().length() <= 500, "dados.rota pode ter até 500 caracteres.");
         // Notificar alguém de outro tenant seria vazamento entre empresas
         exigir(usuarios.pertenceAoTenant(dados.usuarioId(), mensagem.tenantId()),
                 "dados.usuarioId não é um usuário do tenant da mensagem.");
@@ -96,11 +96,8 @@ public class ProcessadorDePedidos {
         if (!processados.registrar(mensagem.id(), mensagem.tipo())) {
             return false;
         }
-        jdbc.update("""
-                INSERT INTO identity.notificacoes (id, tenant_id, usuario_id, categoria, titulo, texto, rota)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, UUID.randomUUID(), mensagem.tenantId(), dados.usuarioId(), dados.categoria(), dados.titulo(),
-                dados.texto(), dados.rota());
+        notificacoes.criar(mensagem.tenantId(), dados.usuarioId(), mensagem.moduloOrigem(), dados.categoria(),
+                dados.titulo(), dados.texto(), dados.rota());
         return true;
     }
 

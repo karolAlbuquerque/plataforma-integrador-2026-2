@@ -32,6 +32,9 @@ import br.com.plataforma.identity.mensageria.MensagemRecusadaException;
 /** Menu, equipes e os pedidos de identity.entrada — RF32 a RF35, RF52, RF54, RF58 e RF59. */
 class PlataformaTest extends BaseIntegracao {
 
+    /** O user_id com que o RabbitMQ entrega as mensagens de moduloOrigem "contratos". */
+    private static final String REMETENTE = "mq_contratos";
+
     @Autowired
     ConsumidorDeEntrada consumidor;
 
@@ -86,8 +89,8 @@ class PlataformaTest extends BaseIntegracao {
         Mensagem<DadosTimeline> mensagem = mensagem("identity.timeline.registrar", EMPRESA_A,
                 new DadosTimeline(empresa, "contratos.contrato.assinado", "Contrato CT-0042 assinado", "/modulos/contratos/7b1e"));
 
-        consumidor.registrarNaTimeline(mensagem);
-        consumidor.registrarNaTimeline(mensagem);   // o RabbitMQ entrega pelo menos uma vez
+        consumidor.registrarNaTimeline(mensagem, REMETENTE);
+        consumidor.registrarNaTimeline(mensagem, REMETENTE);   // o RabbitMQ entrega pelo menos uma vez
 
         mvc.perform(get("/api/identity/eventos").param("empresaId", empresa.toString())
                         .header("Authorization", bearer(tokenDe("financeiro@empresa-a.dev"))))
@@ -117,7 +120,7 @@ class PlataformaTest extends BaseIntegracao {
         Mensagem<DadosNotificacao> mensagem = mensagem("identity.notificacao.criar", EMPRESA_A,
                 new DadosNotificacao(usuarioDaEmpresaB, "NOVO_LEAD", "Novo lead", null, null));
 
-        assertThatThrownBy(() -> consumidor.criarNotificacao(mensagem))
+        assertThatThrownBy(() -> consumidor.criarNotificacao(mensagem, REMETENTE))
                 .isInstanceOf(MensagemRecusadaException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM identity.notificacoes WHERE usuario_id = ?",
                 Integer.class, usuarioDaEmpresaB)).isZero();
@@ -128,7 +131,7 @@ class PlataformaTest extends BaseIntegracao {
         UUID vendedor = jdbc.queryForObject(
                 "SELECT id FROM identity.usuarios WHERE email = 'vendedor@empresa-a.dev'", UUID.class);
         consumidor.criarNotificacao(mensagem("identity.notificacao.criar", EMPRESA_A,
-                new DadosNotificacao(vendedor, "PROPOSTA_ABERTA", "Proposta P-12 aberta pelo cliente", null, "/modulos/crm/propostas/12")));
+                new DadosNotificacao(vendedor, "PROPOSTA_ABERTA", "Proposta P-12 aberta pelo cliente", null, "/propostas/12")), REMETENTE);
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM identity.notificacoes WHERE usuario_id = ? AND tenant_id = ?::uuid",
                 Integer.class, vendedor, EMPRESA_A)).isEqualTo(1);
@@ -140,8 +143,8 @@ class PlataformaTest extends BaseIntegracao {
                 new DadosEmail("cliente@exemplo.com", "cobranca-vencida",
                         Map.of("assunto", "Cobrança vencida", "valor", "R$ 150,00", "vencimento", "20/09/2026")));
 
-        consumidor.enviarEmail(mensagem);
-        consumidor.enviarEmail(mensagem);
+        consumidor.enviarEmail(mensagem, REMETENTE);
+        consumidor.enviarEmail(mensagem, REMETENTE);
 
         ArgumentCaptor<SimpleMailMessage> enviado = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(correio, times(1)).send(enviado.capture());
@@ -154,9 +157,26 @@ class PlataformaTest extends BaseIntegracao {
     void mensagemComTipoTrocadoERecusada() {
         Mensagem<DadosTimeline> mensagem = mensagem("identity.email.enviar", EMPRESA_A,
                 new DadosTimeline(UUID.randomUUID(), "crm.empresa.criada", "Texto", null));
-        assertThatThrownBy(() -> consumidor.registrarNaTimeline(mensagem))
+        assertThatThrownBy(() -> consumidor.registrarNaTimeline(mensagem, REMETENTE))
                 .isInstanceOf(MensagemRecusadaException.class);
         verify(correio, times(0)).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void pedidoSemUserIdOuEmNomeDeOutroModuloERecusado() {
+        UUID empresa = UUID.randomUUID();
+        Mensagem<DadosTimeline> mensagem = mensagem("identity.timeline.registrar", EMPRESA_A,
+                new DadosTimeline(empresa, "contratos.contrato.assinado", "Contrato CT-0099 assinado", null));
+
+        // Sem user_id, e com o user_id do CRM num envelope que diz ser do Contratos
+        assertThatThrownBy(() -> consumidor.registrarNaTimeline(mensagem, null))
+                .isInstanceOf(MensagemRecusadaException.class)
+                .hasMessageContaining("user_id");
+        assertThatThrownBy(() -> consumidor.registrarNaTimeline(mensagem, "mq_crm"))
+                .isInstanceOf(MensagemRecusadaException.class)
+                .hasMessageContaining("mq_crm");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM identity.eventos_timeline WHERE empresa_id = ?",
+                Integer.class, empresa)).isZero();
     }
 
     private static <T> Mensagem<T> mensagem(String tipo, String tenant, T dados) {

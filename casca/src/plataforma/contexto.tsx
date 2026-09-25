@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ShieldCheck, Users, UsersRound, type LucideIcon } from 'lucide-react'
+import { ScrollText, ShieldCheck, Users, UsersRound, type LucideIcon } from 'lucide-react'
 import { ErroDaApi, mensagemDe } from './api'
 import type { Sessao } from './sessao'
 import type { Eu, ModuloDoMenu, Tema } from './tipos'
@@ -45,6 +45,7 @@ export const ADMINISTRACAO: ItemDeAdministracao[] = [
   { caminho: '/admin/usuarios', nome: 'Usuários', icone: Users, permissao: 'identity.usuario.ver' },
   { caminho: '/admin/perfis', nome: 'Perfis de acesso', icone: ShieldCheck, permissao: 'identity.perfil.ver' },
   { caminho: '/admin/equipes', nome: 'Equipes', icone: UsersRound, permissao: 'identity.equipe.ver_resumo' },
+  { caminho: '/admin/auditoria', nome: 'Auditoria', icone: ScrollText, permissao: 'identity.auditoria.ver' },
 ]
 
 export function itensDeAdministracao(tem: (permissao: string) => boolean) {

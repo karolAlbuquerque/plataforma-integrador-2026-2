@@ -35,10 +35,12 @@ public final class Formatos {
         }
     }
 
-    public record SessaoAberta(String accessToken, long expiraEmSegundos, UsuarioResumo usuario) {
+    /** sessaoExpiraEm: fim das oito horas da sessão, que a renovação não adia (Requisito RF41). */
+    public record SessaoAberta(String accessToken, long expiraEmSegundos, Instant sessaoExpiraEm, UsuarioResumo usuario) {
 
         static SessaoAberta de(SessaoEmitida sessao) {
-            return new SessaoAberta(sessao.token().valor(), sessao.token().validadeEmSegundos(), sessao.usuario());
+            return new SessaoAberta(sessao.token().valor(), sessao.token().validadeEmSegundos(), sessao.fimDaSessao(),
+                    sessao.usuario());
         }
     }
 

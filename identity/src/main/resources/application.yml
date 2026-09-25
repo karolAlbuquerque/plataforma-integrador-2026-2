@@ -75,7 +75,38 @@ identity:
   admin-inicial:
     email: ${ADMIN_INICIAL_EMAIL:}
     nome: ${ADMIN_INICIAL_NOME:}
+  mensageria:
+    # Pedido de identity.entrada sem user_id = mq_{moduloOrigem} vai para a .dlq. Desligar só em
+    # emergência, enquanto um módulo corrige o publicador (identity.asyncapi.yaml 0.2.0).
+    exigir-user-id: ${IDENTITY_EXIGIR_USER_ID:true}
+  limpeza:
+    cron: "0 30 3 * * *"                         # todo dia às 3h30, horário de Brasília
+    tentativas-de-login: 30d
+    mensagens-processadas: 90d
+    sessoes-expiradas: 30d
+    recuperacoes-vencidas: 30d
 
+# Métricas numa porta interna, que o gateway não encaminha e o compose não publica (RNF04)
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: false                             # SMTP fora do ar atrasa e-mails, não derruba o identity
+  metrics:
+    tags:
+      application: identity
+
+# Em container o compose liga o log estruturado (LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs), com o
+# requestId do MDC em cada linha. Fora dele, texto com o requestId entre colchetes.
 logging:
   pattern:
     level: "%5p [%X{requestId:-}]"

@@ -33,7 +33,7 @@ class EmailsDeModulosTest extends BaseIntegracao {
 
     @Test
     void modeloDoModuloMontaAssuntoECorpo() {
-        consumidor.enviarEmail(mensagem("exemplo", "cliente@exemplo.com", "exemplo.item-criado", VARIAVEIS));
+        enviar(mensagem("exemplo", "cliente@exemplo.com", "exemplo.item-criado", VARIAVEIS));
 
         assertThat(emailsPara("cliente@exemplo.com")).singleElement().satisfies(email -> {
             assertThat(email.getSubject()).isEqualTo("Item IT-7 criado");
@@ -44,7 +44,7 @@ class EmailsDeModulosTest extends BaseIntegracao {
 
     @Test
     void moduloNaoUsaModeloDeOutro() {
-        assertThatThrownBy(() -> consumidor.enviarEmail(
+        assertThatThrownBy(() -> enviar(
                 mensagem("contratos", "cliente@exemplo.com", "exemplo.item-criado", VARIAVEIS)))
                 .isInstanceOf(MensagemRecusadaException.class)
                 .hasMessageContaining("contratos.*");
@@ -55,7 +55,7 @@ class EmailsDeModulosTest extends BaseIntegracao {
     void conviteERecuperacaoNaoSaemPelaFila() {
         // Um módulo mandaria um "convite" com link falso em nome da plataforma
         for (String modelo : new String[] {"identity.convite", "identity.recuperacao-senha"}) {
-            assertThatThrownBy(() -> consumidor.enviarEmail(mensagem("exemplo", "alvo@exemplo.com", modelo,
+            assertThatThrownBy(() -> enviar(mensagem("exemplo", "alvo@exemplo.com", modelo,
                     Map.of("nome", "Ana", "link", "https://golpe.exemplo.com"))))
                     .isInstanceOf(MensagemRecusadaException.class)
                     .hasMessageContaining("internos da plataforma");
@@ -68,7 +68,7 @@ class EmailsDeModulosTest extends BaseIntegracao {
         Mensagem<DadosEmail> mensagem = mensagem("exemplo", "cliente@exemplo.com", "exemplo.item-criado",
                 Map.of("item", "IT-8", "nome", "Ana"));
 
-        assertThatThrownBy(() -> consumidor.enviarEmail(mensagem))
+        assertThatThrownBy(() -> enviar(mensagem))
                 .isInstanceOf(MensagemRecusadaException.class)
                 .hasMessageContaining("data");
         assertThat(enviados).isEmpty();
@@ -83,7 +83,7 @@ class EmailsDeModulosTest extends BaseIntegracao {
         assertThat(modelos.doModulo("exemplo.Fora-Do-Padrao")).isEmpty();
         assertThat(modelos.doModulo("identity.convite")).isEmpty();
 
-        assertThatThrownBy(() -> consumidor.enviarEmail(
+        assertThatThrownBy(() -> enviar(
                 mensagem("exemplo", "cliente@exemplo.com", "exemplo.sem-assunto", VARIAVEIS)))
                 .isInstanceOf(MensagemRecusadaException.class)
                 .hasMessageContaining("não está cadastrado");
@@ -93,6 +93,11 @@ class EmailsDeModulosTest extends BaseIntegracao {
     void modeloInternoDoConviteContinuaOriginal() {
         // A pasta emails/identity/ do catálogo é ignorada: o convite de verdade vem do classpath
         assertThat(modelos.interno(ModelosDeEmail.CONVITE).assunto()).isEqualTo("Seu acesso à plataforma da {{empresa}}");
+    }
+
+    /** Como o RabbitMQ entrega: com o user_id de quem publicou, mq_{moduloOrigem}. */
+    private void enviar(Mensagem<DadosEmail> mensagem) {
+        consumidor.enviarEmail(mensagem, "mq_" + mensagem.moduloOrigem());
     }
 
     private static Mensagem<DadosEmail> mensagem(String modulo, String para, String modelo, Map<String, String> variaveis) {

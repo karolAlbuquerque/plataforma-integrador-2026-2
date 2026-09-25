@@ -17,12 +17,21 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import br.com.plataforma.identity.auditoria.RegistroDeAcessoNegado;
+import jakarta.servlet.http.HttpServletRequest;
+
 /** Converte toda exceção no envelope padrão, com o código HTTP da §8.4. */
 @RestControllerAdvice
 public class TratadorDeErros {
 
     private static final Logger log = LoggerFactory.getLogger(TratadorDeErros.class);
     private static final Set<String> OBRIGATORIEDADE = Set.of("NotBlank", "NotNull", "NotEmpty");
+
+    private final RegistroDeAcessoNegado acessosNegados;
+
+    public TratadorDeErros(RegistroDeAcessoNegado acessosNegados) {
+        this.acessosNegados = acessosNegados;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<Resposta<Void>> dadosInvalidos(MethodArgumentNotValidException e) {
@@ -66,9 +75,10 @@ public class TratadorDeErros {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Resposta.falha(e.getMessage()));
     }
 
-    /** Lançada pelo @PreAuthorize: autenticado, mas sem a permissão exigida. */
+    /** Lançada pelo @PreAuthorize: autenticado, mas sem a permissão exigida. Vai para a auditoria (RF49). */
     @ExceptionHandler(AccessDeniedException.class)
-    ResponseEntity<Resposta<Void>> semPermissao(AccessDeniedException e) {
+    ResponseEntity<Resposta<Void>> semPermissao(AccessDeniedException e, HttpServletRequest requisicao) {
+        acessosNegados.registrar(requisicao);
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Resposta.falha("Sem permissão para esta operação."));
     }

@@ -1,29 +1,10 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { MAILPIT, entrar, irPara, menu } from './apoio'
 
 /**
  * Caminho login → menu → módulo e as telas de administração (Requisito RNF08), contra o compose.
  * Usuários de teste e senha: docs/usuarios-de-teste.md do infra-integrador-2026 (só em dev).
  */
-const SENHA = process.env.SENHA_DE_TESTE ?? 'Plataforma2026'
-const MAILPIT = process.env.MAILPIT_URL ?? 'http://localhost:8025'
-
-async function entrar(page: Page, email: string, senha = SENHA) {
-  await page.goto('/')
-  await page.getByLabel('E-mail').fill(email)
-  await page.getByLabel('Senha', { exact: true }).fill(senha)
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click()
-  await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible()
-}
-
-/** Navegação interna da casca, sem recarregar a página (como um clique num link). */
-async function irPara(page: Page, caminho: string) {
-  await page.evaluate((destino) => {
-    window.history.pushState(null, '', destino)
-    window.dispatchEvent(new PopStateEvent('popstate'))
-  }, caminho)
-}
-
-const menu = (page: Page) => page.getByRole('navigation', { name: 'Principal' })
 
 test('login, menu e módulo embutido recebendo a sessão', async ({ page }) => {
   await entrar(page, 'administrador@empresa-a.dev')

@@ -9,10 +9,14 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -32,6 +36,9 @@ import br.com.plataforma.identity.mensageria.TopologiaMensageria;
  * identity.entrada com um RabbitMQ de verdade (Requisito RNF08, decisão D10): a topologia que o
  * identity declara, o listener ligado, a idempotência com reentrega e a .dlq depois das
  * tentativas. Os outros testes chamam o consumidor direto, sem broker.
+ *
+ * Os pedidos saem como sairiam do CRM: conectado como mq_crm e com user_id = mq_crm. O template
+ * do Spring (guest) só publica o que precisa ser recusado.
  */
 @SpringBootTest
 @ActiveProfiles("dev")
@@ -48,6 +55,7 @@ import br.com.plataforma.identity.mensageria.TopologiaMensageria;
 class MensageriaRabbitTest {
 
     private static final String FILA_DLQ = "identity.timeline-registrar.dlq";
+    private static final String USUARIO_DO_CRM = "mq_crm";
 
     /** O mesmo PostgreSQL dos outros testes; o RabbitMQ é só desta classe. */
     @ServiceConnection
@@ -58,6 +66,12 @@ class MensageriaRabbitTest {
 
     static {
         RABBIT.start();
+        try {
+            RABBIT.execInContainer("rabbitmqctl", "add_user", USUARIO_DO_CRM, "senha-do-crm");
+            RABBIT.execInContainer("rabbitmqctl", "set_permissions", "-p", "/", USUARIO_DO_CRM, ".*", ".*", ".*");
+        } catch (Exception e) {
+            throw new IllegalStateException("Usuário mq_crm não criado no RabbitMQ de teste.", e);
+        }
     }
 
     @MockitoBean
@@ -69,13 +83,41 @@ class MensageriaRabbitTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    MessageConverter conversor;
+
+    /** Publica como o CRM: conexão de mq_crm; com ou sem a propriedade user_id. */
+    CachingConnectionFactory conexao;
+    RabbitTemplate crm;
+    RabbitTemplate crmSemUserId;
+
+    @BeforeEach
+    void conectarComoCrm() {
+        conexao = new CachingConnectionFactory(RABBIT.getHost(), RABBIT.getAmqpPort());
+        conexao.setUsername(USUARIO_DO_CRM);
+        conexao.setPassword("senha-do-crm");
+        crm = new RabbitTemplate(conexao);
+        crm.setMessageConverter(conversor);
+        crm.setBeforePublishPostProcessors(mensagem -> {
+            mensagem.getMessageProperties().setUserId(USUARIO_DO_CRM);
+            return mensagem;
+        });
+        crmSemUserId = new RabbitTemplate(conexao);
+        crmSemUserId.setMessageConverter(conversor);
+    }
+
+    @AfterEach
+    void desconectar() {
+        conexao.destroy();
+    }
+
     @Test
     void pedidoPublicadoNaExchangeEGravadoUmaVezMesmoReentregue() {
         UUID empresa = UUID.randomUUID();
         Mensagem<DadosTimeline> mensagem = timeline(BaseIntegracao.EMPRESA_A, empresa, "Proposta P-7 enviada");
 
-        rabbit.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
-        rabbit.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
+        crm.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
+        crm.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
 
         await().atMost(Duration.ofSeconds(10)).until(() -> contar(empresa), total -> total >= 1);
         await().during(Duration.ofSeconds(1)).atMost(Duration.ofSeconds(3)).until(() -> contar(empresa), total -> total == 1);
@@ -89,7 +131,7 @@ class MensageriaRabbitTest {
         UUID empresa = UUID.randomUUID();
         Mensagem<DadosTimeline> mensagem = timeline(UUID.randomUUID().toString(), empresa, "De tenant que não existe");
 
-        rabbit.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
+        crm.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
 
         Message morta = rabbit.receive(FILA_DLQ, 15_000);
         assertThat(morta).as("mensagem na .dlq").isNotNull();
@@ -110,9 +152,40 @@ class MensageriaRabbitTest {
 
         // O listener continua de pé: um pedido válido depois do inválido é processado
         UUID empresa = UUID.randomUUID();
-        rabbit.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE,
+        crm.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE,
                 timeline(BaseIntegracao.EMPRESA_A, empresa, "Depois do inválido"));
         await().atMost(Duration.ofSeconds(10)).until(() -> contar(empresa), total -> total == 1);
+    }
+
+    @Test
+    void pedidoSemUserIdTerminaNaDlq() {
+        UUID empresa = UUID.randomUUID();
+        Mensagem<DadosTimeline> mensagem = timeline(BaseIntegracao.EMPRESA_A, empresa, "Sem user_id");
+
+        crmSemUserId.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem);
+
+        Message morta = rabbit.receive(FILA_DLQ, 15_000);
+        assertThat(morta).as("mensagem na .dlq").isNotNull();
+        assertThat(new String(morta.getBody(), StandardCharsets.UTF_8)).contains(mensagem.id().toString());
+        assertThat(contar(empresa)).isZero();
+    }
+
+    @Test
+    void brokerRecusaUserIdDeOutroUsuario() {
+        // O guest se dizendo mq_crm: o RabbitMQ fecha o canal e a mensagem nem chega à fila
+        UUID empresa = UUID.randomUUID();
+        Mensagem<DadosTimeline> mensagem = timeline(BaseIntegracao.EMPRESA_A, empresa, "Fingindo ser o CRM");
+
+        rabbit.convertAndSend(TopologiaMensageria.EXCHANGE_ENTRADA, TopologiaMensageria.TIPO_TIMELINE, mensagem,
+                publicada -> {
+                    publicada.getMessageProperties().setUserId(USUARIO_DO_CRM);
+                    return publicada;
+                });
+
+        await().during(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(4)).until(() -> contar(empresa), total -> total == 0);
+        Message morta = rabbit.receive(FILA_DLQ, 500);
+        assertThat(morta == null ? "" : new String(morta.getBody(), StandardCharsets.UTF_8))
+                .doesNotContain(mensagem.id().toString());
     }
 
     private int contar(UUID empresa) {

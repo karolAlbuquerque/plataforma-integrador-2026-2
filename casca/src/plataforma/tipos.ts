@@ -1,4 +1,4 @@
-/** Formatos de contratos/identity.yaml (v0.2.0) do infra-integrador-2026. */
+/** Formatos de contratos/identity.yaml (v0.3.0) do infra-integrador-2026. */
 
 /** Envelope de toda resposta da plataforma (Contrato §8.2). */
 export interface Envelope<T> {
@@ -31,6 +31,8 @@ export interface Usuario {
 export interface SessaoAberta {
   accessToken: string
   expiraEmSegundos: number
+  /** Fim das oito horas da sessão; a renovação não o adia (RF41). */
+  sessaoExpiraEm: string
   usuario: Usuario
 }
 
@@ -187,3 +189,30 @@ export interface EquipeDetalhe {
 export type Tema = 'claro' | 'escuro'
 
 export type NivelDeAviso = 'sucesso' | 'erro' | 'info'
+
+// ---------------------------------------------------------------- onda 3
+
+export interface Notificacao {
+  id: string
+  categoria: string
+  titulo: string
+  texto: string | null
+  /** Nulo nas notificações gravadas antes da onda 3. */
+  moduloOrigem: string | null
+  /** Relativa ao front do módulo de origem (Contrato §12.2). */
+  rota: string | null
+  lida: boolean
+  criadaEm: string
+}
+
+export interface RegistroDeAuditoria {
+  id: string
+  ocorridoEm: string
+  usuario: { id: string; nome: string } | null
+  ip: string | null
+  acao: string
+  entidade: string
+  entidadeId: string | null
+  valorAnterior: Record<string, unknown> | null
+  valorNovo: Record<string, unknown> | null
+}

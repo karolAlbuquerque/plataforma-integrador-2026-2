@@ -11,6 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -146,7 +149,8 @@ class AutenticacaoTest extends BaseIntegracao {
         Jwt jwt = decodificador.decode(JsonPath.read(corpo, "$.data.accessToken"));
         assertThat(jwt.getSubject()).isEqualTo("svc:landing");
         assertThat(jwt.hasClaim("tenant_id")).isFalse();
-        assertThat(jwt.getClaimAsStringList("perms")).containsExactly("exemplo.item.criar");
+        // servicos: [landing] no catálogo — a do exemplo e o resolver de tenant da superfície pública
+        assertThat(jwt.getClaimAsStringList("perms")).containsExactlyInAnyOrder("exemplo.item.criar", "identity.tenant.ver");
 
         mvc.perform(post("/api/identity/auth/token-servico")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -160,9 +164,12 @@ class AutenticacaoTest extends BaseIntegracao {
 
     @Test
     void refreshRotacionaOCookieEOAntigoDeixaDeValer() throws Exception {
-        Cookie primeiro = mvc.perform(login("gestor@empresa-a.dev", SENHA, ipAleatorio()))
+        MockHttpServletResponse login = mvc.perform(login("gestor@empresa-a.dev", SENHA, ipAleatorio()))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getCookie("refresh_token");
+                .andReturn().getResponse();
+        Cookie primeiro = login.getCookie("refresh_token");
+        Instant fimDaSessao = Instant.parse(JsonPath.read(login.getContentAsString(), "$.data.sessaoExpiraEm"));
+        assertThat(fimDaSessao).isBetween(Instant.now().plus(Duration.ofMinutes(479)), Instant.now().plus(Duration.ofHours(8)));
 
         MockHttpServletResponse renovada = mvc.perform(post(REFRESH).cookie(primeiro))
                 .andExpect(status().isOk())
@@ -171,8 +178,10 @@ class AutenticacaoTest extends BaseIntegracao {
                 .andReturn().getResponse();
         Cookie segundo = renovada.getCookie("refresh_token");
         assertThat(segundo.getValue()).isNotEqualTo(primeiro.getValue());
-        // A rotação não estende a sessão além das 8 horas do login
+        // A rotação não estende a sessão além das 8 horas do login — e a casca sabe quando ela acaba (RF41)
         assertThat(segundo.getMaxAge()).isLessThanOrEqualTo(primeiro.getMaxAge());
+        assertThat(Instant.parse(JsonPath.read(renovada.getContentAsString(), "$.data.sessaoExpiraEm")))
+                .isEqualTo(fimDaSessao);
 
         mvc.perform(post(REFRESH).cookie(primeiro))
                 .andExpect(status().isUnauthorized())
