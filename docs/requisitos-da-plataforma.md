@@ -12,8 +12,7 @@ Esta versão mantém os requisitos da v0.2, de 14 de setembro, e acrescenta **a 
 |---|---|
 | Requisitos funcionais | 61 |
 | Requisitos não funcionais | 15 |
-| Funcionais implementados (ondas 1 a 3, já na branch principal) | 57 |
-| Funcionais planejados para a onda 4 | 4 |
+| Funcionais implementados (ondas 1 a 4, já na branch principal) | 61 |
 | Não funcionais atendidos | 11 |
 
 As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usável (login, menu e permissões), a onda 2 trouxe administração de usuários, convite e recuperação de senha, e a onda 3 fechou os serviços transversais — timeline, notificações, e-mail e auditoria. A onda 4, ainda não iniciada, tem 2FA, tema na conta do usuário, busca global e exportação de dados pessoais.
@@ -31,7 +30,7 @@ As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usáve
 | `RF07` | Recuperação de senha | Importante | Implementado — onda 2 |
 | `RF08` | Troca de senha pelo próprio usuário | Importante | Implementado — onda 2 |
 | `RF09` | Política e armazenamento de senha | Essencial | Implementado — onda 2 |
-| `RF10` | Segundo fator por aplicativo autenticador | Desejável | Planejado — onda 4 |
+| `RF10` | Segundo fator por aplicativo autenticador | Desejável | Implementado — onda 4 |
 | `RF11` | Proteção contra tentativa em massa | Essencial | Implementado — onda 1 |
 | `RF12` | Token de serviço para rotinas sem usuário | Essencial | Implementado — onda 1 |
 | `RF13` | Cadastro de usuário | Essencial | Implementado — onda 2 |
@@ -63,7 +62,7 @@ As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usáve
 | `RF37` | Verificação de origem nas mensagens | Essencial | Implementado — onda 3 |
 | `RF38` | Endereço que sobrevive ao recarregamento | Importante | Implementado — onda 3 |
 | `RF39` | Estado de saúde dos módulos | Importante | Implementado — onda 3 |
-| `RF40` | Tema e identidade visual compartilhados | Desejável | Planejado — onda 4 |
+| `RF40` | Tema e identidade visual compartilhados | Desejável | Implementado — onda 4 |
 | `RF41` | Sessão que expira sem susto | Importante | Implementado — onda 3 |
 | `RF61` | Um endereço só, com caminhos por módulo | Essencial | Implementado — onda 1 |
 | `RF42` | Roteamento por prefixo | Essencial | Implementado — onda 1 |
@@ -79,8 +78,8 @@ As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usáve
 | `RF52` | Timeline única da empresa | Importante | Implementado — onda 3 |
 | `RF53` | Evento chega pronto para exibição | Importante | Implementado — onda 3 |
 | `RF54` | Notificações ao usuário | Importante | Implementado — onda 3 |
-| `RF55` | Busca global | Desejável | Planejado — onda 4 |
-| `RF56` | Exportação e anonimização de dados pessoais | Desejável | Planejado — onda 4 |
+| `RF55` | Busca global | Desejável | Implementado — onda 4 |
+| `RF56` | Exportação e anonimização de dados pessoais | Desejável | Implementado — onda 4 |
 | `RF58` | Envio de e-mail de sistema | Importante | Implementado — onda 2 |
 | `RF59` | Consumo das mensagens de entrada da plataforma | Importante | Implementado — onda 3 |
 | `RNF01` | Segurança | Essencial | Atendido |
@@ -197,7 +196,7 @@ Hash `BCrypt` com custo 12. Mínimo de oito caracteres, com letra e número. Sen
 
 #### RF10 — Segundo fator por aplicativo autenticador
 
-**Prioridade:** Desejável · **Situação:** Planejado — onda 4
+**Prioridade:** Desejável · **Situação:** Implementado — onda 4
 
 O usuário ativa o TOTP lendo um QR Code; a partir daí o login pede o código de seis dígitos. São gerados códigos de recuperação de uso único.
 
@@ -533,7 +532,7 @@ A casca consulta periodicamente o *healthcheck* declarado no registro de cada m�
 
 #### RF40 — Tema e identidade visual compartilhados
 
-**Prioridade:** Desejável · **Situação:** Planejado — onda 4
+**Prioridade:** Desejável · **Situação:** Implementado — onda 4
 
 Tema claro e escuro, escolhido pelo usuário, guardado na conta e propagado ao iframe. A plataforma mantém em `infra-integrador-2026/ui/` o *preset* do Tailwind e os componentes shadcn/ui ajustados, que os sete grupos copiam.
 
@@ -701,7 +700,7 @@ Os módulos pedem notificações publicando `identity.notificacao.criar` no Rabb
 
 #### RF55 — Busca global
 
-**Prioridade:** Desejável · **Situação:** Planejado — onda 4
+**Prioridade:** Desejável · **Situação:** Implementado — onda 4
 
 A casca oferece o campo e o atalho de teclado, consulta em paralelo `GET /api/{modulo}/busca?q=` nos módulos que o usuário pode acessar e agrupa os resultados por módulo.
 
@@ -711,7 +710,7 @@ A casca oferece o campo e o atalho de teclado, consulta em paralelo `GET /api/{m
 
 #### RF56 — Exportação e anonimização de dados pessoais
 
-**Prioridade:** Desejável · **Situação:** Planejado — onda 4
+**Prioridade:** Desejável · **Situação:** Implementado — onda 4
 
 Exportar os dados pessoais de um usuário da plataforma e anonimizá-los quando a retenção permitir, preservando a integridade dos registros que ele criou.
 

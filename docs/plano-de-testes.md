@@ -42,7 +42,7 @@ em memória: o que passa no teste é o mesmo SQL que roda em produção.
 
 ## 4. O que já está automatizado
 
-Em 25 de setembro, **183 testes automatizados**: 171 de unidade e integração, em 30 classes, que rodam a cada pull request, e 12 de ponta a ponta com Playwright, executados contra o ambiente completo no ar.
+Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar.
 
 | Suíte | O que cobre | Testes |
 |---|---|---|
@@ -55,10 +55,12 @@ Em 25 de setembro, **183 testes automatizados**: 171 de unidade e integração, 
 | `MensageriaRabbitTest`, `NotificacoesTest` | timeline, notificação e e-mail recebidos por mensagem, com idempotência | 9 |
 | `AuditoriaTest`, `CsvDeAuditoriaTest`, `LogSemSegredosTest` | auditoria imutável, exportação e log sem segredo | 9 |
 | `ModeloDeEmailTest`, `EmailsDeModulosTest` | modelos de e-mail e envio pedido por outros módulos | 14 |
+| `SegundoFatorTest`, `TotpTest` | verificação em duas etapas: ativação, códigos de recuperação e login em dois passos | 13 |
+| `TemaEBuscaTest`, `DadosPessoaisTest` | tema na conta, busca global do identity e exportação e anonimização dos dados pessoais | 6 |
 | `CabecalhoDe32KbTest`, `MetricasTest`, `LimpezaDeRegistrosTest`, `AdministradorInicialTest`, `SuperficiePublicaTest`, `BaseIntegracao` | limite de cabeçalho, métricas, limpeza de registros antigos, administrador inicial, superfície pública e subida do contexto | 10 |
 | `GatewayTest`, `LimitePublicoFiltroTest` (gateway) | roteamento, 401 sem token, 503 e 504 de módulo fora do ar, limite por IP nas rotas públicas | 20 |
 | `SegurancaEIsolamentoTest`, `ConsumidorIdempotenteTest`, `RemetenteTest` (módulo de exemplo) | o que todo módulo precisa provar: 401, 403, isolamento por tenant e evento processado uma vez só | 14 |
-| `casca.spec.ts`, `onda3.spec.ts` (Playwright, ponta a ponta) | login pelo navegador, sessão mantida ao recarregar, menu conforme permissão, módulo embutido recebendo a sessão, administração, convite pelo e-mail, notificação, auditoria e aviso de fim de sessão | 12 |
+| `casca.spec.ts`, `onda3.spec.ts`, `onda4.spec.ts` (Playwright, ponta a ponta) | login pelo navegador, sessão mantida ao recarregar, menu conforme permissão, módulo embutido recebendo a sessão, administração, convite pelo e-mail, notificação, auditoria, fim de sessão, segundo fator, tema e busca global | 16 |
 
 ## 5. Casos de teste de aceitação
 
@@ -84,6 +86,9 @@ automatizados, exceto os marcados como manuais.
 | CT-15 | RF13, RF14 | Convite enviado, aceito e reutilizado | o link funciona uma vez e expira em 72 horas | Automatizado |
 | CT-16 | RF35 | Módulo aberto dentro da casca, em iframe | recebe a sessão, ajusta a altura e renova o token sem recarregar | Automatizado (Playwright) |
 | CT-17 | RNF12 | Casca aberta em telas de 360 px e 1920 px | menu e conteúdo utilizáveis nas duas | **Manual** |
+| CT-19 | RF10 | Ativar a verificação em duas etapas e entrar com o código | login pede o segundo passo; código de recuperação funciona uma vez só | Automatizado |
+| CT-20 | RF55 | Busca global com um termo que existe em mais de um módulo | resultados agrupados por módulo, no formato único do §8.6 | Automatizado |
+| CT-21 | RF56 | Usuário pede exportação dos próprios dados e a anonimização | arquivo entregue com os dados do usuário; anonimização preserva a auditoria | Automatizado |
 | CT-18 | — | Roteiro de ponta a ponta com o módulo de exemplo | login, menu, chamada pelo gateway, isolamento entre dois tenants e evento na timeline | Automatizado em parte; o isolamento entre tenants pelo navegador continua **manual** |
 
 ## 6. Critérios de entrada e de saída
