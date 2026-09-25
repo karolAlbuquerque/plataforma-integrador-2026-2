@@ -25,7 +25,7 @@ public class ModuloRepositorio {
 
     public record Modulo(String codigo, String nome, String grupo, String icone, String urlFrontend,
                          String prefixoApi, String permissaoMenu, int ordemMenu, String healthcheck,
-                         List<ItemDeMenu> itensSubmenu) {
+                         List<ItemDeMenu> itensSubmenu, boolean busca) {
     }
 
     /** Módulos ativos, na ordem do menu, com os itens de submenu na ordem do registro. */
@@ -37,7 +37,8 @@ public class ModuloRepositorio {
                             .add(new ItemDeMenu(rs.getString("rota"), rs.getString("nome"), rs.getString("permissao")));
                 });
         return jdbc.query("""
-                SELECT id, codigo, nome, grupo, icone, url_frontend, prefixo_api, permissao_menu, ordem_menu, healthcheck
+                SELECT id, codigo, nome, grupo, icone, url_frontend, prefixo_api, permissao_menu, ordem_menu, healthcheck,
+                       busca
                   FROM identity.modulos
                  WHERE ativo
                  ORDER BY ordem_menu, nome
@@ -45,7 +46,7 @@ public class ModuloRepositorio {
                 rs.getString("codigo"), rs.getString("nome"), rs.getString("grupo"), rs.getString("icone"),
                 rs.getString("url_frontend"), rs.getString("prefixo_api"), rs.getString("permissao_menu"),
                 rs.getInt("ordem_menu"), rs.getString("healthcheck"),
-                List.copyOf(itens.getOrDefault(rs.getObject("id", UUID.class), List.of()))));
+                List.copyOf(itens.getOrDefault(rs.getObject("id", UUID.class), List.of())), rs.getBoolean("busca")));
     }
 
     /** Grava o registro vindo de modulos/{codigo}.json. Não mexe em "ativo": quem desliga é o administrador. */
@@ -53,17 +54,17 @@ public class ModuloRepositorio {
     public void salvar(Modulo modulo) {
         UUID id = jdbc.queryForObject("""
                 INSERT INTO identity.modulos (id, codigo, nome, grupo, icone, url_frontend, prefixo_api,
-                                              permissao_menu, ordem_menu, healthcheck)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                              permissao_menu, ordem_menu, healthcheck, busca)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (codigo) DO UPDATE
                    SET nome = EXCLUDED.nome, grupo = EXCLUDED.grupo, icone = EXCLUDED.icone,
                        url_frontend = EXCLUDED.url_frontend, prefixo_api = EXCLUDED.prefixo_api,
                        permissao_menu = EXCLUDED.permissao_menu, ordem_menu = EXCLUDED.ordem_menu,
-                       healthcheck = EXCLUDED.healthcheck, updated_at = now()
+                       healthcheck = EXCLUDED.healthcheck, busca = EXCLUDED.busca, updated_at = now()
                 RETURNING id
                 """, UUID.class, UUID.randomUUID(), modulo.codigo(), modulo.nome(), modulo.grupo(), modulo.icone(),
                 modulo.urlFrontend(), modulo.prefixoApi(), modulo.permissaoMenu(), modulo.ordemMenu(),
-                modulo.healthcheck());
+                modulo.healthcheck(), modulo.busca());
 
         jdbc.update("DELETE FROM identity.modulo_menu_itens WHERE modulo_id = ?", id);
         List<ItemDeMenu> itens = modulo.itensSubmenu();

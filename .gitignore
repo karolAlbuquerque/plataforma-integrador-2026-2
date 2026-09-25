@@ -13,6 +13,8 @@ dist/
 # Playwright
 e2e/test-results/
 e2e/playwright-report/
+# Segredos do autenticador dos usuários de teste, gravados pelo e2e
+e2e/.segundo-fator.json
 
 # IDEs e sistema
 .idea/

@@ -26,6 +26,7 @@ export const SITUACOES: Record<Situacao, string> = {
   convite_pendente: 'Convite pendente',
   convite_expirado: 'Convite expirado',
   inativo: 'Inativo',
+  anonimizado: 'Anonimizado',
 }
 
 /** Sem acento e em minúsculas, para buscas locais. */

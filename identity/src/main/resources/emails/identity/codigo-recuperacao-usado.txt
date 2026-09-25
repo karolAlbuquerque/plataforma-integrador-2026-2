@@ -1,0 +1,7 @@
+Assunto: Um código de recuperação foi usado na sua conta
+
+Olá, {{nome}}.
+
+Um código de recuperação foi usado para entrar na sua conta da plataforma da {{empresa}} em {{quando}}. Restam {{restantes}} códigos.
+
+Se você perdeu o celular, cadastre o aplicativo autenticador num aparelho novo em Minha conta. Se não foi você, troque a sua senha e avise o administrador da sua empresa.

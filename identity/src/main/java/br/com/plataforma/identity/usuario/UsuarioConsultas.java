@@ -35,6 +35,7 @@ public class UsuarioConsultas {
     public static final String SITUACAO_CONVITE_PENDENTE = "convite_pendente";
     public static final String SITUACAO_CONVITE_EXPIRADO = "convite_expirado";
     public static final String SITUACAO_INATIVO = "inativo";
+    public static final String SITUACAO_ANONIMIZADO = "anonimizado";
 
     public record PerfilDoUsuario(UUID id, String nome, String rotulo, boolean sistema) {
     }
@@ -48,7 +49,7 @@ public class UsuarioConsultas {
 
     public record UsuarioDetalhe(UUID id, String nome, String email, String telefone, String situacao,
                                  List<PerfilDoUsuario> perfis, Instant ultimoLoginEm, Instant criadoEm,
-                                 List<EquipeDoUsuario> equipes, Instant conviteExpiraEm) {
+                                 List<EquipeDoUsuario> equipes, Instant conviteExpiraEm, boolean segundoFatorAtivo) {
     }
 
     public record Filtro(String busca, UUID perfilId, String situacao) {
@@ -56,8 +57,9 @@ public class UsuarioConsultas {
 
     /** Situação calculada: "ativo" é quem já definiu senha; sem senha, depende do convite. */
     private static final String SELECAO = """
-            SELECT u.id, u.nome, u.email::text AS email, u.telefone, u.ultimo_login_em, u.created_at,
-                   CASE WHEN NOT u.ativo THEN 'inativo'
+            SELECT u.id, u.nome, u.email::text AS email, u.telefone, u.ultimo_login_em, u.created_at, u.mfa_ativo,
+                   CASE WHEN u.anonimizado_em IS NOT NULL THEN 'anonimizado'
+                        WHEN NOT u.ativo THEN 'inativo'
                         WHEN u.senha_hash IS NOT NULL THEN 'ativo'
                         WHEN EXISTS (SELECT 1 FROM identity.recuperacoes_senha r
                                       WHERE r.usuario_id = u.id AND r.tipo = 'convite'
@@ -120,7 +122,7 @@ public class UsuarioConsultas {
                 .stream().findFirst()
                 .map(l -> new UsuarioDetalhe(l.id(), l.nome(), l.email(), l.telefone(), l.situacao(),
                         perfisDe(List.of(l.id())).getOrDefault(l.id(), List.of()), l.ultimoLoginEm(), l.criadoEm(),
-                        equipesDe(tenant, l.id()), conviteExpiraEm(l)));
+                        equipesDe(tenant, l.id()), conviteExpiraEm(l), l.segundoFatorAtivo()));
     }
 
     public Map<UUID, List<PerfilDoUsuario>> perfisDe(List<UUID> usuarios) {
@@ -194,7 +196,7 @@ public class UsuarioConsultas {
     }
 
     private record Linha(UUID id, String nome, String email, String telefone, String situacao, Instant ultimoLoginEm,
-                         Instant criadoEm) {
+                         Instant criadoEm, boolean segundoFatorAtivo) {
     }
 
     private static Linha linha(ResultSet rs, int numero) throws SQLException {
@@ -202,6 +204,7 @@ public class UsuarioConsultas {
         return new Linha(rs.getObject("id", UUID.class), rs.getString("nome"), rs.getString("email"),
                 rs.getString("telefone"), rs.getString("situacao"),
                 ultimoLogin == null ? null : ultimoLogin.toInstant(),
-                rs.getObject("created_at", OffsetDateTime.class).toInstant());
+                rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+                rs.getBoolean("mfa_ativo"));
     }
 }

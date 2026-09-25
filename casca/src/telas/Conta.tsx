@@ -1,16 +1,18 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Laptop, Moon, Sun } from 'lucide-react'
+import { Download, KeyRound, Laptop, Monitor, Moon, Sun } from 'lucide-react'
 import { Badge, Button, cx, FormField, Input, Modal, PageHeader, Spinner } from '@/components/ui'
 import { ErroDaApi, api, mensagemDe } from '../plataforma/api'
 import { avisar } from '../plataforma/avisos'
 import { useCarregar, useCasca, type Carga } from '../plataforma/contexto'
 import { dataHora, haQuanto, senhaAceitavel } from '../plataforma/formato'
-import type { Conta as DadosDaConta, SessaoAtiva } from '../plataforma/tipos'
+import { baixarTexto, CampoDeCodigo, codigoCompleto, ListaDeCodigos, QrCodeDoSegredo } from '../componentes/SegundoFator'
+import type { CadastroDeSegundoFator, Conta as DadosDaConta, PreferenciaDeTema, SessaoAtiva, SituacaoDoSegundoFator } from '../plataforma/tipos'
 import { RegrasDaSenha } from './publicas/TelaPublica'
 
 /**
  * Minha conta (RF18, RF08, RF06): os próprios dados, a troca de senha e as sessões abertas. Perfis
- * e equipes aparecem só para leitura — quem muda é um administrador.
+ * e equipes aparecem só para leitura — quem muda é um administrador. Na onda 4: a verificação em
+ * duas etapas (RF10), o tema guardado na conta (RF40) e o download dos próprios dados (RF56).
  */
 export function Conta() {
   const { carga, recarregar } = useCarregar(() => api.get<DadosDaConta>('/api/identity/conta'), [])
@@ -25,7 +27,9 @@ export function Conta() {
         {carga.tipo === 'pronto' && <DadosPessoais conta={carga.dados} aoSalvar={recarregar} />}
         <TrocaDeSenha aoTrocar={sessoes.recarregar} />
         <Sessoes carga={sessoes.carga} recarregar={sessoes.recarregar} />
+        <DuasEtapas />
         <Aparencia />
+        <MeusDados />
       </div>
     </div>
   )
@@ -245,30 +249,205 @@ function Sessoes({ carga, recarregar }: { carga: Carga<SessaoAtiva[]>; recarrega
 }
 
 function Aparencia() {
-  const { tema, alternarTema } = useCasca()
-  const opcoes = [
+  const { preferenciaDeTema, definirPreferenciaDeTema } = useCasca()
+  const opcoes: { valor: PreferenciaDeTema; rotulo: string; icone: typeof Sun }[] = [
     { valor: 'claro', rotulo: 'Claro', icone: Sun },
     { valor: 'escuro', rotulo: 'Escuro', icone: Moon },
-  ] as const
+    { valor: 'sistema', rotulo: 'Sistema', icone: Monitor },
+  ]
   return (
-    <Painel titulo="Aparência" descricao="Vale para este navegador e para os módulos abertos nele.">
+    <Painel titulo="Aparência" descricao="Fica guardada na sua conta e vale em qualquer navegador, inclusive nos módulos.">
       <div role="radiogroup" aria-label="Tema" className="inline-flex rounded-lg border border-borda p-0.5">
         {opcoes.map((opcao) => (
           <button
             key={opcao.valor}
             type="button"
             role="radio"
-            aria-checked={tema === opcao.valor}
-            onClick={() => tema !== opcao.valor && alternarTema()}
+            aria-checked={preferenciaDeTema === opcao.valor}
+            onClick={() => preferenciaDeTema !== opcao.valor && definirPreferenciaDeTema(opcao.valor)}
             className={cx(
               'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-              tema === opcao.valor ? 'bg-brand-950 text-white' : 'text-texto-2 hover:bg-superficie-2',
+              preferenciaDeTema === opcao.valor ? 'bg-brand-950 text-white' : 'text-texto-2 hover:bg-superficie-2',
             )}
           >
             <opcao.icone aria-hidden className="size-4" /> {opcao.rotulo}
           </button>
         ))}
       </div>
+    </Painel>
+  )
+}
+
+/** LGPD art. 18, II: o que a plataforma guarda de você, num arquivo JSON. */
+function MeusDados() {
+  const { sessao } = useCasca()
+  const [baixando, setBaixando] = useState(false)
+
+  async function baixar() {
+    setBaixando(true)
+    try {
+      const dados = await api.get<unknown>('/api/identity/conta/dados-pessoais')
+      baixarTexto(`meus-dados-${sessao.usuario.id}.json`, JSON.stringify(dados, null, 2), 'application/json')
+    } catch (e) {
+      avisar('erro', mensagemDe(e))
+    } finally {
+      setBaixando(false)
+    }
+  }
+
+  return (
+    <Painel titulo="Meus dados" descricao="Cadastro, perfis, sessões, tentativas de entrada, notificações e o que você fez na plataforma (LGPD).">
+      <Button variant="outline" loading={baixando} onClick={() => void baixar()}>
+        <Download aria-hidden className="size-4" /> Baixar meus dados
+      </Button>
+    </Painel>
+  )
+}
+
+type PassoDaTroca =
+  | { tipo: 'identidade'; intencao: 'troca' | 'codigos' }
+  | { tipo: 'qr'; cadastro: CadastroDeSegundoFator }
+  | { tipo: 'codigos'; codigos: string[] }
+
+/**
+ * RF10: trocar de aparelho e gerar códigos novos. Não existe "desativar" (decisão de 25/09). Com o
+ * segundo fator não obrigatório (só no desenvolvimento), daqui também se ativa.
+ */
+function DuasEtapas() {
+  const { sessao } = useCasca()
+  const { carga, recarregar } = useCarregar(() => api.get<SituacaoDoSegundoFator>('/api/identity/conta/segundo-fator'), [])
+  const [passo, setPasso] = useState<PassoDaTroca | null>(null)
+  const [senha, setSenha] = useState('')
+  const [codigo, setCodigo] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const situacao = carga.tipo === 'pronto' ? carga.dados : null
+
+  function abrir(intencao: 'troca' | 'codigos') {
+    setSenha('')
+    setCodigo('')
+    setErro(null)
+    setPasso({ tipo: 'identidade', intencao })
+  }
+
+  function fechar() {
+    if (passo?.tipo === 'codigos') recarregar()
+    setPasso(null)
+  }
+
+  async function confirmar(evento: FormEvent) {
+    evento.preventDefault()
+    if (!passo || passo.tipo === 'codigos') return
+    setEnviando(true)
+    setErro(null)
+    try {
+      if (passo.tipo === 'identidade') {
+        const corpo = { senha, codigo: situacao?.ativo ? codigo.trim() : undefined }
+        if (passo.intencao === 'troca') {
+          setPasso({ tipo: 'qr', cadastro: await api.post<CadastroDeSegundoFator>('/api/identity/conta/segundo-fator/troca', corpo) })
+        } else {
+          const { codigosRecuperacao } = await api.post<{ codigosRecuperacao: string[] }>('/api/identity/conta/segundo-fator/codigos', corpo)
+          setPasso({ tipo: 'codigos', codigos: codigosRecuperacao })
+        }
+      } else {
+        const { codigosRecuperacao } = await api.post<{ codigosRecuperacao: string[] }>(
+          '/api/identity/conta/segundo-fator/troca/confirmar', { codigo: codigo.trim() })
+        setPasso({ tipo: 'codigos', codigos: codigosRecuperacao })
+        avisar('sucesso', 'Aplicativo autenticador cadastrado. O anterior deixou de valer.')
+      }
+      setCodigo('')
+    } catch (e) {
+      setErro(mensagemDe(e))
+      setCodigo('')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  const pronto = passo?.tipo === 'qr'
+    ? codigoCompleto(codigo)
+    : !!senha && (!situacao?.ativo || codigoCompleto(codigo))
+  const titulo = passo?.tipo === 'codigos'
+    ? 'Guarde os códigos de recuperação'
+    : passo?.tipo === 'qr' || (passo?.tipo === 'identidade' && passo.intencao === 'troca')
+      ? situacao?.ativo ? 'Trocar de aparelho' : 'Ativar a verificação em duas etapas'
+      : 'Gerar novos códigos de recuperação'
+
+  return (
+    <Painel titulo="Verificação em duas etapas" descricao="Depois da senha, a plataforma pede o código do aplicativo autenticador do seu celular.">
+      {carga.tipo === 'carregando' && <Spinner />}
+      {carga.tipo === 'erro' && <p role="alert" className="text-sm text-red-600">{carga.mensagem}</p>}
+      {situacao && (
+        <>
+          <p className="flex flex-wrap items-center gap-2 text-sm text-texto">
+            {situacao.ativo ? <Badge variant="green">Ativa</Badge> : <Badge variant="yellow">Não cadastrada</Badge>}
+            {situacao.ativo && (
+              <span className="text-texto-3">
+                desde {dataHora(situacao.ativadoEm)} · {situacao.codigosRestantes}{' '}
+                {situacao.codigosRestantes === 1 ? 'código de recuperação restante' : 'códigos de recuperação restantes'}
+              </span>
+            )}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => abrir('troca')}>
+              <KeyRound aria-hidden className="size-4" /> {situacao.ativo ? 'Trocar de aparelho' : 'Ativar'}
+            </Button>
+            {situacao.ativo && (
+              <Button variant="ghost" size="sm" onClick={() => abrir('codigos')}>Gerar novos códigos</Button>
+            )}
+          </div>
+        </>
+      )}
+
+      <Modal
+        open={passo !== null}
+        onClose={fechar}
+        size="sm"
+        title={titulo}
+        footer={passo?.tipo === 'codigos'
+          ? <Button onClick={fechar}>Guardei os códigos</Button>
+          : (
+            <>
+              <Button variant="outline" onClick={fechar}>Cancelar</Button>
+              <Button type="submit" form="duas-etapas" loading={enviando} disabled={!pronto}>
+                {passo?.tipo === 'qr' ? 'Confirmar' : 'Continuar'}
+              </Button>
+            </>
+          )}
+      >
+        {passo?.tipo === 'codigos' ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-texto-2">Cada código vale uma vez. Os anteriores deixaram de valer e estes não aparecem de novo.</p>
+            <ListaDeCodigos codigos={passo.codigos} email={sessao.usuario.email} />
+          </div>
+        ) : (
+          <form id="duas-etapas" onSubmit={(e) => void confirmar(e)} className="flex flex-col gap-4">
+            {passo?.tipo === 'qr' ? (
+              <>
+                <p className="text-sm text-texto-2">Leia o QR Code com o aplicativo do aparelho novo e digite o código que aparecer.</p>
+                <QrCodeDoSegredo cadastro={passo.cadastro} />
+                <FormField label="Código do aparelho novo" htmlFor="duas-etapas-novo" error={erro}>
+                  <CampoDeCodigo id="duas-etapas-novo" valor={codigo} aoMudar={setCodigo} invalido={!!erro} />
+                </FormField>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-texto-2">Confirme que é você.</p>
+                <input type="email" autoComplete="username" value={sessao.usuario.email} hidden readOnly />
+                <FormField label="Senha" htmlFor="duas-etapas-senha" error={situacao?.ativo ? null : erro}>
+                  <Input id="duas-etapas-senha" type="password" autoComplete="current-password" autoFocus value={senha}
+                    onChange={(e) => setSenha(e.target.value)} />
+                </FormField>
+                {situacao?.ativo && (
+                  <FormField label="Código do aplicativo atual" htmlFor="duas-etapas-codigo" error={erro}>
+                    <CampoDeCodigo id="duas-etapas-codigo" valor={codigo} aoMudar={setCodigo} invalido={!!erro} focar={false} />
+                  </FormField>
+                )}
+              </>
+            )}
+          </form>
+        )}
+      </Modal>
     </Painel>
   )
 }

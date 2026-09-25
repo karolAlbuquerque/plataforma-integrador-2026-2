@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -51,7 +52,7 @@ public class UsuarioController {
 
     private static final Set<String> SITUACOES = Set.of(UsuarioConsultas.SITUACAO_ATIVO,
             UsuarioConsultas.SITUACAO_CONVITE_PENDENTE, UsuarioConsultas.SITUACAO_CONVITE_EXPIRADO,
-            UsuarioConsultas.SITUACAO_INATIVO);
+            UsuarioConsultas.SITUACAO_INATIVO, UsuarioConsultas.SITUACAO_ANONIMIZADO);
 
     public record CadastroDeUsuario(
             @NotBlank(message = "Informe o nome.")
@@ -79,12 +80,22 @@ public class UsuarioController {
         }
     }
 
+    /** O e-mail do usuário, digitado de novo: a anonimização não tem volta. */
+    public record ConfirmacaoDeAnonimizacao(
+            @NotBlank(message = "Digite o e-mail do usuário para confirmar.")
+            @Size(max = 254, message = "O e-mail pode ter até 254 caracteres.")
+            String confirmacao) {
+    }
+
     private final UsuarioConsultas consultas;
     private final AdministracaoDeUsuarios administracao;
+    private final DadosPessoais dadosPessoais;
 
-    public UsuarioController(UsuarioConsultas consultas, AdministracaoDeUsuarios administracao) {
+    public UsuarioController(UsuarioConsultas consultas, AdministracaoDeUsuarios administracao,
+                             DadosPessoais dadosPessoais) {
         this.consultas = consultas;
         this.administracao = administracao;
+        this.dadosPessoais = dadosPessoais;
     }
 
     @GetMapping
@@ -100,7 +111,7 @@ public class UsuarioController {
         }
         if (situacao != null && !situacao.isBlank() && !SITUACOES.contains(situacao)) {
             throw ErroDeNegocio.invalido("situacao", "CAMPO_INVALIDO",
-                    "Situação deve ser ativo, convite_pendente, convite_expirado ou inativo.");
+                    "Situação deve ser ativo, convite_pendente, convite_expirado, inativo ou anonimizado.");
         }
         Filtro filtro = new Filtro(busca, perfilId, situacao == null || situacao.isBlank() ? null : situacao);
         return Resposta.ok(consultas.listar(TenantContexto.exigir(), filtro, Math.max(pagina, 0),
@@ -149,5 +160,34 @@ public class UsuarioController {
     public Resposta<UsuarioSalvo> reenviarConvite(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt,
                                                   HttpServletRequest requisicao) {
         return Resposta.ok(administracao.reenviarConvite(Ator.de(jwt), id, Origem.de(requisicao)));
+    }
+
+    /** Para quem perdeu o celular e os códigos de recuperação: o cadastro do aplicativo recomeça. */
+    @PostMapping("/{id}/segundo-fator/redefinir")
+    @PreAuthorize("hasAuthority('identity.usuario.administrar')")
+    public Resposta<UsuarioSalvo> redefinirSegundoFator(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt,
+                                                        HttpServletRequest requisicao) {
+        return Resposta.ok(administracao.redefinirSegundoFator(Ator.de(jwt), id, Origem.de(requisicao)));
+    }
+
+    /** Tudo o que o identity guarda da pessoa (Requisito RF56, LGPD art. 18, II). */
+    @GetMapping("/{id}/dados-pessoais")
+    @PreAuthorize("hasAuthority('identity.usuario.dados_pessoais')")
+    public ResponseEntity<Resposta<DadosPessoais.Exportacao>> exportarDadosPessoais(@PathVariable UUID id,
+                                                                                    @AuthenticationPrincipal Jwt jwt,
+                                                                                    HttpServletRequest requisicao) {
+        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(Resposta.ok(dadosPessoais.exportar(Ator.de(jwt), id, Origem.de(requisicao))));
+    }
+
+    /** Irreversível; só de usuário desativado (Requisito RF56, LGPD art. 18, IV). */
+    @PostMapping("/{id}/anonimizar")
+    @PreAuthorize("hasAuthority('identity.usuario.dados_pessoais')")
+    public Resposta<UsuarioDetalhe> anonimizar(@PathVariable UUID id, @Valid @RequestBody ConfirmacaoDeAnonimizacao corpo,
+                                               @AuthenticationPrincipal Jwt jwt, HttpServletRequest requisicao) {
+        Ator ator = Ator.de(jwt);
+        dadosPessoais.anonimizar(ator, id, corpo.confirmacao(), Origem.de(requisicao));
+        return Resposta.ok(consultas.detalhe(ator.tenant(), id)
+                .orElseThrow(() -> new NaoEncontradoException("Usuário não encontrado.")));
     }
 }

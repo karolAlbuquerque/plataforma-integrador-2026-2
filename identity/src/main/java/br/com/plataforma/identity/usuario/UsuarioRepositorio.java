@@ -18,7 +18,7 @@ public class UsuarioRepositorio {
 
     private static final String SELECAO = """
             SELECT u.id, u.tenant_id, u.nome, u.email::text AS email, u.senha_hash, u.ativo,
-                   (t.ativo AND t.deleted_at IS NULL) AS tenant_ativo
+                   (t.ativo AND t.deleted_at IS NULL) AS tenant_ativo, u.mfa_ativo, u.preferencia_tema
               FROM identity.usuarios u
               JOIN identity.tenants t ON t.id = u.tenant_id
             """;
@@ -72,6 +72,12 @@ public class UsuarioRepositorio {
                 perfis, permissoes, equipes);
     }
 
+    /** Preferência de tema da conta (Requisito RF40); "sistema" se o usuário não existir mais. */
+    public String tema(UUID id) {
+        return jdbc.query("SELECT preferencia_tema FROM identity.usuarios WHERE id = ?",
+                (rs, linha) -> rs.getString(1), id).stream().findFirst().orElse("sistema");
+    }
+
     public void registrarLogin(UUID id) {
         jdbc.update("UPDATE identity.usuarios SET ultimo_login_em = now() WHERE id = ?", id);
     }
@@ -99,6 +105,8 @@ public class UsuarioRepositorio {
                 rs.getString("email"),
                 rs.getString("senha_hash"),
                 rs.getBoolean("ativo"),
-                rs.getBoolean("tenant_ativo"));
+                rs.getBoolean("tenant_ativo"),
+                rs.getBoolean("mfa_ativo"),
+                rs.getString("preferencia_tema"));
     }
 }

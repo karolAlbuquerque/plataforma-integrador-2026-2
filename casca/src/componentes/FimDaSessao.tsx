@@ -1,18 +1,22 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button, FormField, Input, Modal } from '@/components/ui'
 import { useCasca } from '../plataforma/contexto'
-import { aoMudarFimDaSessao, entrar, ErroDeEntrada, fimDaSessaoAtual, sair, type FimDaSessao } from '../plataforma/sessao'
+import { aoMudarFimDaSessao, concluirComCodigo, entrar, ErroDeEntrada, fimDaSessaoAtual, sair, type FimDaSessao } from '../plataforma/sessao'
+import { CampoDeCodigo, codigoCompleto } from './SegundoFator'
 
 /**
  * RF41: a sessão dura oito horas. Cinco minutos antes, e de novo quando ela acaba, a casca pede a
  * senha num modal — sem sair da tela: o iframe do módulo continua montado com o que o usuário
- * preenchia, e recebe o token novo pelo plataforma:token de sempre.
+ * preenchia, e recebe o token novo pelo plataforma:token de sempre. Com a verificação em duas
+ * etapas (RF10), depois da senha vem o código do aplicativo, no mesmo modal.
  */
 export function AvisoDeFimDaSessao() {
   const { sessao } = useCasca()
   const [fim, setFim] = useState<FimDaSessao>(fimDaSessaoAtual)
   const [dispensadoEm, setDispensadoEm] = useState<number | null>(null)
   const [senha, setSenha] = useState('')
+  const [desafio, setDesafio] = useState<string | null>(null)
+  const [codigo, setCodigo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [, setTique] = useState(0)
@@ -28,6 +32,8 @@ export function AvisoDeFimDaSessao() {
 
   useEffect(() => {
     setSenha('')
+    setDesafio(null)
+    setCodigo('')
     setErro(null)
   }, [fim?.estado])
 
@@ -36,14 +42,33 @@ export function AvisoDeFimDaSessao() {
   const expirando = fim.estado === 'expirando'
   const minutos = expirando ? Math.max(1, Math.ceil((fim.fim - Date.now()) / 60_000)) : 0
 
+  const pronto = desafio ? codigoCompleto(codigo) : !!senha
+
   async function continuar(evento: FormEvent) {
     evento.preventDefault()
-    if (!senha) return
+    if (!pronto) return
     setEnviando(true)
     setErro(null)
     try {
-      await entrar(sessao.usuario.email, senha)
+      if (desafio) {
+        await concluirComCodigo(desafio, { codigo: codigo.trim() })
+        return
+      }
+      const resultado = await entrar(sessao.usuario.email, senha)
+      if (resultado.tipo === 'desafio') {
+        if (resultado.desafio.etapa === 'cadastro_segundo_fator') {
+          // O administrador redefiniu o segundo fator: o cadastro do aplicativo é na tela de entrada
+          setErro('Sua verificação em duas etapas foi redefinida. Saia e entre de novo para cadastrar o aplicativo.')
+        } else {
+          setDesafio(resultado.desafio.desafio)
+        }
+      }
     } catch (e) {
+      if (e instanceof ErroDeEntrada && e.codigo === 'DESAFIO_EXPIRADO') {
+        setDesafio(null)
+        setSenha('')
+      }
+      setCodigo('')
       setErro(e instanceof ErroDeEntrada ? e.message : 'Não foi possível continuar. Tente de novo.')
     } finally {
       setEnviando(false)
@@ -61,7 +86,7 @@ export function AvisoDeFimDaSessao() {
         <>
           <Button variant="ghost" onClick={() => void sair()}>Sair</Button>
           {expirando && <Button variant="outline" onClick={() => setDispensadoEm(fim.fim)}>Agora não</Button>}
-          <Button type="submit" form="reentrada" loading={enviando} disabled={!senha}>Continuar</Button>
+          <Button type="submit" form="reentrada" loading={enviando} disabled={!pronto}>Continuar</Button>
         </>
       }
     >
@@ -73,18 +98,24 @@ export function AvisoDeFimDaSessao() {
         </p>
         {/* Para o gerenciador de senhas saber de qual conta é a senha */}
         <input type="email" name="email" autoComplete="username" value={sessao.usuario.email} readOnly hidden />
-        <FormField label={`Senha de ${sessao.usuario.email}`} htmlFor="senha-reentrada" error={erro}>
-          <Input
-            id="senha-reentrada"
-            type="password"
-            autoComplete="current-password"
-            autoFocus
-            value={senha}
-            maxLength={72}
-            invalid={!!erro}
-            onChange={(e) => setSenha(e.target.value)}
-          />
-        </FormField>
+        {desafio ? (
+          <FormField label="Código do aplicativo autenticador" htmlFor="codigo-reentrada" error={erro}>
+            <CampoDeCodigo id="codigo-reentrada" valor={codigo} aoMudar={setCodigo} invalido={!!erro} />
+          </FormField>
+        ) : (
+          <FormField label={`Senha de ${sessao.usuario.email}`} htmlFor="senha-reentrada" error={erro}>
+            <Input
+              id="senha-reentrada"
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              value={senha}
+              maxLength={72}
+              invalid={!!erro}
+              onChange={(e) => setSenha(e.target.value)}
+            />
+          </FormField>
+        )}
       </form>
     </Modal>
   )

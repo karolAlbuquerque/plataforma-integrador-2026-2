@@ -61,7 +61,7 @@ public class CatalogoDePermissoes implements ApplicationRunner {
 
     record ModuloDeclarado(String codigo, String nome, String grupo, String icone, String urlFrontend,
                            String prefixoApi, String permissaoMenu, Integer ordemMenu, String healthcheck,
-                           List<ItemDeclarado> itensSubmenu) {
+                           List<ItemDeclarado> itensSubmenu, Boolean busca) {
     }
 
     private final JdbcTemplate jdbc;
@@ -260,6 +260,6 @@ public class CatalogoDePermissoes implements ApplicationRunner {
         int ordem = declarado.ordemMenu() == null ? 100 : Math.clamp(declarado.ordemMenu(), 1, 999);
         return new Modulo(declarado.codigo(), declarado.nome().strip(), declarado.grupo(), icone,
                 declarado.urlFrontend(), declarado.prefixoApi(), declarado.permissaoMenu(), ordem,
-                declarado.healthcheck(), itens);
+                declarado.healthcheck(), itens, Boolean.TRUE.equals(declarado.busca()));
     }
 }

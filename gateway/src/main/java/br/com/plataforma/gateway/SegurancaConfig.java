@@ -38,6 +38,10 @@ public class SegurancaConfig {
 
     static final String[] SEM_TOKEN = {
             "/api/identity/auth/login",
+            // Segunda etapa do login (RF10): quem chega aqui tem o desafio da senha, não um token
+            "/api/identity/auth/login/segundo-fator",
+            "/api/identity/auth/login/segundo-fator/cadastro",
+            "/api/identity/auth/login/segundo-fator/cadastro/confirmar",
             "/api/identity/auth/refresh",
             "/api/identity/auth/logout",
             "/api/identity/auth/token-servico",

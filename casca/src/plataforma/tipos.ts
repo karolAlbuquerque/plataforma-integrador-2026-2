@@ -1,4 +1,4 @@
-/** Formatos de contratos/identity.yaml (v0.3.0) do infra-integrador-2026. */
+/** Formatos de contratos/identity.yaml (v0.4.0) do infra-integrador-2026. */
 
 /** Envelope de toda resposta da plataforma (Contrato §8.2). */
 export interface Envelope<T> {
@@ -26,6 +26,8 @@ export interface Usuario {
   nome: string
   email: string
   tenantId: string
+  /** Guardado na conta (RF40). Ausente num identity anterior à onda 4. */
+  tema?: PreferenciaDeTema
 }
 
 export interface SessaoAberta {
@@ -34,6 +36,38 @@ export interface SessaoAberta {
   /** Fim das oito horas da sessão; a renovação não o adia (RF41). */
   sessaoExpiraEm: string
   usuario: Usuario
+  /** Só ao concluir o cadastro do segundo fator: a única vez em que aparecem. */
+  codigosRecuperacao?: string[]
+}
+
+/** Senha certa, falta o segundo fator (RF10): sem cookie e sem access token ainda. */
+export interface DesafioDeSegundoFator {
+  etapa: 'segundo_fator' | 'cadastro_segundo_fator'
+  desafio: string
+  desafioExpiraEm: string
+}
+
+export interface CadastroDeSegundoFator {
+  /** Base32, para digitar no aplicativo quando não der para ler o QR Code. */
+  segredo: string
+  /** Conteúdo do QR Code (otpauth://totp/...). */
+  uri: string
+}
+
+export interface SituacaoDoSegundoFator {
+  ativo: boolean
+  ativadoEm: string | null
+  codigosRestantes: number
+  obrigatorio: boolean
+}
+
+/** Formato comum da busca global (Contrato §8.6). */
+export interface ItemDaBusca {
+  id: string
+  titulo: string
+  subtitulo: string | null
+  /** Relativa ao urlFrontend do módulo; no identity, um caminho da própria casca. */
+  rota: string
 }
 
 export interface Eu {
@@ -58,6 +92,8 @@ export interface ModuloDoMenu {
   ordemMenu: number
   disponivel: boolean
   itensSubmenu: ItemDoSubmenu[]
+  /** Responde GET {prefixoApi}/busca e entra na busca global. Ausente num identity anterior à onda 4. */
+  busca?: boolean
 }
 
 // ------------------------------------------------------------------ senha e sessões
@@ -81,7 +117,7 @@ export interface SessaoAtiva {
 
 // ------------------------------------------------------------------ usuários
 
-export type Situacao = 'ativo' | 'convite_pendente' | 'convite_expirado' | 'inativo'
+export type Situacao = 'ativo' | 'convite_pendente' | 'convite_expirado' | 'inativo' | 'anonimizado'
 
 export interface PerfilDoUsuario {
   id: string
@@ -110,6 +146,7 @@ export interface UsuarioDaLista {
 export interface UsuarioDetalhe extends UsuarioDaLista {
   equipes: EquipeDoUsuario[]
   conviteExpiraEm: string | null
+  segundoFatorAtivo?: boolean
 }
 
 export interface UsuarioSalvo {
@@ -128,6 +165,8 @@ export interface Conta {
   equipes: EquipeDoUsuario[]
   ultimoLoginEm: string | null
   criadoEm: string
+  tema?: PreferenciaDeTema
+  segundoFatorAtivo?: boolean
 }
 
 // ------------------------------------------------------------------ perfis e permissões
@@ -186,7 +225,11 @@ export interface EquipeDetalhe {
   membros: MembroDaEquipe[]
 }
 
+/** O tema aplicado na tela. */
 export type Tema = 'claro' | 'escuro'
+
+/** A escolha do usuário: "sistema" segue o prefers-color-scheme do navegador. */
+export type PreferenciaDeTema = Tema | 'sistema'
 
 export type NivelDeAviso = 'sucesso' | 'erro' | 'info'
 

@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Mail, Pencil, Plus, RotateCw, ScrollText, UserCheck, UserX, Users as IconeUsuarios, X } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Download, Eraser, KeyRound, Mail, Pencil, Plus, RotateCw, ScrollText, UserCheck, UserX, Users as IconeUsuarios, X } from 'lucide-react'
 import {
   Avatar, Badge, Button, Checkbox, DetailField, DetailSection, EmptyState, FilterBar, FormField, FormSection, Input,
   Modal, PageHeader, Pagination, SearchBar, Select, Spinner, statusBadge, Tabs,
@@ -9,6 +9,7 @@ import { avisar } from '../../plataforma/avisos'
 import { useCarregar, useCasca } from '../../plataforma/contexto'
 import { SITUACOES, dataHora, haQuanto, useAtraso } from '../../plataforma/formato'
 import { navegar } from '../../plataforma/rotas'
+import { baixarTexto } from '../../componentes/SegundoFator'
 import type { EquipeResumo, Pagina, PerfilResumo, UsuarioDaLista, UsuarioDetalhe, UsuarioSalvo } from '../../plataforma/tipos'
 
 const TAMANHO = 20
@@ -22,8 +23,18 @@ export function Usuarios() {
   const [busca, setBusca] = useState('')
   const [filtros, setFiltros] = useState({ perfilId: '', situacao: '', ordenar: 'nome,asc', pagina: 0 })
   const buscaAtrasada = useAtraso(busca.trim())
-  const [aberto, setAberto] = useState<string | null>(null)
+  const [aberto, setAberto] = useState<string | null>(usuarioDaUrl)
   const [formulario, setFormulario] = useState<Formulario | null>(null)
+
+  // Resultado da busca global (/admin/usuarios?usuario={id}) abre o detalhe, mesmo com a tela já aberta
+  useEffect(() => {
+    const abrirDaUrl = () => {
+      const id = usuarioDaUrl()
+      if (id) setAberto(id)
+    }
+    window.addEventListener('plataforma:rota', abrirDaUrl)
+    return () => window.removeEventListener('plataforma:rota', abrirDaUrl)
+  }, [])
 
   const lista = useCarregar(
     () => api.get<Pagina<UsuarioDaLista>>(`/api/identity/usuarios${consulta({ busca: buscaAtrasada, tamanho: TAMANHO, ...filtros })}`),
@@ -180,6 +191,8 @@ export function Usuarios() {
   )
 }
 
+const usuarioDaUrl = () => new URLSearchParams(window.location.search).get('usuario')
+
 // ------------------------------------------------------------------ detalhe
 
 function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
@@ -192,8 +205,11 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
   const { eu, tem } = useCasca()
   const { carga, recarregar } = useCarregar(() => api.get<UsuarioDetalhe>(`/api/identity/usuarios/${id}`), [id])
   const [aba, setAba] = useState(0)
-  const [confirmando, setConfirmando] = useState(false)
+  const [confirmando, setConfirmando] = useState<'desativar' | 'segundo-fator' | 'anonimizar' | null>(null)
   const [ocupado, setOcupado] = useState<string | null>(null)
+  const [confirmacao, setConfirmacao] = useState('')
+  const [erroDaConfirmacao, setErroDaConfirmacao] = useState<string | null>(null)
+  const dadosPessoais = tem('identity.usuario.dados_pessoais')
 
   if (carga.tipo !== 'pronto') {
     return (
@@ -205,6 +221,7 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
   const usuario = carga.dados
   const euMesmo = usuario.id === eu?.usuario.id
   const convite = usuario.situacao === 'convite_pendente' || usuario.situacao === 'convite_expirado'
+  const anonimizado = usuario.situacao === 'anonimizado'
 
   async function agir(acao: 'desativar' | 'reativar' | 'convite') {
     setOcupado(acao)
@@ -214,11 +231,58 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
       else if (salvo.conviteEnviado === false) avisar('erro', 'O e-mail do convite não saiu. Tente de novo em instantes.')
       else if (salvo.conviteEnviado) avisar('sucesso', `Convite enviado para ${salvo.usuario.email}.`)
       else avisar('sucesso', `${usuario.nome} foi reativado e já pode entrar com a senha dele.`)
-      setConfirmando(false)
+      setConfirmando(null)
       recarregar()
       aoMudar()
     } catch (e) {
       avisar('erro', mensagemDe(e))
+    } finally {
+      setOcupado(null)
+    }
+  }
+
+  /** Quem perdeu o celular e os códigos: o cadastro do aplicativo recomeça no próximo login (RF10). */
+  async function redefinirSegundoFator() {
+    setOcupado('segundo-fator')
+    try {
+      await api.post<UsuarioSalvo>(`/api/identity/usuarios/${usuario.id}/segundo-fator/redefinir`)
+      avisar('sucesso', `Verificação em duas etapas de ${usuario.nome} redefinida. As sessões dele foram encerradas.`)
+      setConfirmando(null)
+      recarregar()
+    } catch (e) {
+      avisar('erro', mensagemDe(e))
+    } finally {
+      setOcupado(null)
+    }
+  }
+
+  /** LGPD art. 18, II: tudo o que a plataforma guarda da pessoa, num arquivo JSON. */
+  async function exportarDados() {
+    setOcupado('exportar')
+    try {
+      const dados = await api.get<unknown>(`/api/identity/usuarios/${usuario.id}/dados-pessoais`)
+      baixarTexto(`dados-pessoais-${usuario.id}.json`, JSON.stringify(dados, null, 2), 'application/json')
+    } catch (e) {
+      avisar('erro', mensagemDe(e))
+    } finally {
+      setOcupado(null)
+    }
+  }
+
+  /** LGPD art. 18, IV: irreversível; o e-mail digitado de novo confirma que é a pessoa certa. */
+  async function anonimizar(evento: FormEvent) {
+    evento.preventDefault()
+    setOcupado('anonimizar')
+    setErroDaConfirmacao(null)
+    try {
+      await api.post<UsuarioDetalhe>(`/api/identity/usuarios/${usuario.id}/anonimizar`, { confirmacao: confirmacao.trim() })
+      avisar('sucesso', 'Usuário anonimizado. Os registros que ele fez continuam, sem o nome.')
+      setConfirmando(null)
+      setConfirmacao('')
+      recarregar()
+      aoMudar()
+    } catch (e) {
+      setErroDaConfirmacao(mensagemDe(e))
     } finally {
       setOcupado(null)
     }
@@ -244,7 +308,7 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
                 <ScrollText aria-hidden className="size-3" />
               </Button>
             )}
-            {administra && (
+            {administra && !anonimizado && (
               <Button variant="secondary" size="sm" onClick={() => aoEditar(usuario)}>
                 <Pencil aria-hidden className="size-3" /> Editar
               </Button>
@@ -270,6 +334,11 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
               <DetailField label="Último acesso">{dataHora(usuario.ultimoLoginEm) ?? 'Nunca entrou'}</DetailField>
               <DetailField label="Cadastrado em">{dataHora(usuario.criadoEm)}</DetailField>
               {convite && <DetailField label="Convite vale até">{dataHora(usuario.conviteExpiraEm) ?? 'Sem convite válido'}</DetailField>}
+              {usuario.segundoFatorAtivo !== undefined && !anonimizado && (
+                <DetailField label="Verificação em duas etapas">
+                  {usuario.segundoFatorAtivo ? <Badge variant="green">Ativa</Badge> : <Badge>Não cadastrada</Badge>}
+                </DetailField>
+              )}
             </DetailSection>
           </>
         ) : (
@@ -294,35 +363,96 @@ function PainelDoUsuario({ id, administra, aoFechar, aoEditar, aoMudar }: {
         )}
       </div>
 
-      {administra && (
+      {(administra || dadosPessoais) && !anonimizado && (
         <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-borda bg-superficie-2 px-5 py-3">
-          {convite && (
+          {dadosPessoais && (
+            <Button variant="ghost" size="sm" loading={ocupado === 'exportar'} onClick={() => void exportarDados()}>
+              <Download aria-hidden className="size-3.5" /> Exportar dados pessoais
+            </Button>
+          )}
+          {administra && usuario.segundoFatorAtivo && (
+            <Button variant="outline" size="sm" onClick={() => setConfirmando('segundo-fator')}>
+              <KeyRound aria-hidden className="size-3.5" /> Redefinir duas etapas
+            </Button>
+          )}
+          {dadosPessoais && usuario.situacao === 'inativo' && !euMesmo && (
+            <Button variant="danger" size="sm" onClick={() => setConfirmando('anonimizar')}>
+              <Eraser aria-hidden className="size-3.5" /> Anonimizar
+            </Button>
+          )}
+          {administra && convite && (
             <Button variant="outline" size="sm" loading={ocupado === 'convite'} onClick={() => void agir('convite')}>
               <Mail aria-hidden className="size-3.5" /> Reenviar convite
             </Button>
           )}
-          {usuario.situacao === 'inativo' ? (
+          {administra && (usuario.situacao === 'inativo' ? (
             <Button variant="secondary" size="sm" loading={ocupado === 'reativar'} onClick={() => void agir('reativar')}>
               <UserCheck aria-hidden className="size-3.5" /> Reativar
             </Button>
           ) : (
             !euMesmo && (
-              <Button variant="danger" size="sm" onClick={() => setConfirmando(true)}>
+              <Button variant="danger" size="sm" onClick={() => setConfirmando('desativar')}>
                 <UserX aria-hidden className="size-3.5" /> Desativar
               </Button>
             )
-          )}
+          ))}
         </div>
       )}
 
       <Modal
-        open={confirmando}
-        onClose={() => setConfirmando(false)}
+        open={confirmando === 'segundo-fator'}
+        onClose={() => setConfirmando(null)}
+        size="sm"
+        title={`Redefinir a verificação em duas etapas de ${usuario.nome}?`}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmando(null)}>Cancelar</Button>
+            <Button variant="danger" loading={ocupado === 'segundo-fator'} onClick={() => void redefinirSegundoFator()}>Redefinir</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-texto-2">
+          Para quem perdeu o celular e os códigos de recuperação. O aplicativo e os códigos atuais deixam de valer, as
+          sessões abertas são encerradas e, no próximo login, a pessoa cadastra o aplicativo de novo. Ela recebe um
+          e-mail avisando. Confirme antes que o pedido veio mesmo dela.
+        </p>
+      </Modal>
+
+      <Modal
+        open={confirmando === 'anonimizar'}
+        onClose={() => setConfirmando(null)}
+        size="sm"
+        title={`Anonimizar ${usuario.nome}?`}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmando(null)}>Cancelar</Button>
+            <Button type="submit" form="anonimizar" variant="danger" loading={ocupado === 'anonimizar'}
+              disabled={confirmacao.trim().toLowerCase() !== usuario.email.toLowerCase()}>
+              Anonimizar
+            </Button>
+          </>
+        }
+      >
+        <form id="anonimizar" onSubmit={(e) => void anonimizar(e)} className="flex flex-col gap-4">
+          <p className="text-sm text-texto-2">
+            <strong className="text-titulo">Não tem volta.</strong> Nome, e-mail e telefone são apagados; o usuário vira
+            "Usuário anonimizado" e não pode mais entrar nem ser reativado. Os registros que ele fez continuam, sem o
+            nome. A auditoria de acesso é mantida, por obrigação legal. Os outros módulos são avisados.
+          </p>
+          <FormField label={`Digite ${usuario.email} para confirmar`} htmlFor="confirmacao-anonimizar" error={erroDaConfirmacao}>
+            <Input id="confirmacao-anonimizar" autoComplete="off" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} />
+          </FormField>
+        </form>
+      </Modal>
+
+      <Modal
+        open={confirmando === 'desativar'}
+        onClose={() => setConfirmando(null)}
         size="sm"
         title={`Desativar ${usuario.nome}?`}
         footer={
           <>
-            <Button variant="outline" onClick={() => setConfirmando(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setConfirmando(null)}>Cancelar</Button>
             <Button variant="danger" loading={ocupado === 'desativar'} onClick={() => void agir('desativar')}>Desativar</Button>
           </>
         }

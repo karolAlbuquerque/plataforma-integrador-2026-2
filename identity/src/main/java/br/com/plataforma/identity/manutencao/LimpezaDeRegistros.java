@@ -66,6 +66,9 @@ public class LimpezaDeRegistros {
         apagadas.put("recuperacoes_senha", jdbc.update(
                 "DELETE FROM identity.recuperacoes_senha WHERE tipo = 'recuperacao' AND expira_em < ?",
                 agora.minus(recuperacoesVencidas)));
+        // Vivem 5 minutos; um dia de folga basta para investigar um login da véspera
+        apagadas.put("desafios_segundo_fator", jdbc.update(
+                "DELETE FROM identity.desafios_segundo_fator WHERE expira_em < ?", agora.minusDays(1)));
         log.info("Limpeza diária: {}", apagadas);
         return apagadas;
     }

@@ -7,7 +7,8 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './testes',
-  timeout: 30_000,
+  // O segundo fator às vezes espera o próximo passo de 30 s para ter um código novo
+  timeout: 90_000,
   workers: 1,
   reporter: [['list']],
   use: {

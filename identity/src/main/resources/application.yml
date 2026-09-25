@@ -54,6 +54,14 @@ identity:
   login:
     maximo-falhas: 5
     janela: 15m
+  segundo-fator:
+    # Obrigatório para todo usuário (RF10, decisão de 25/09). Vazio: desligado no perfil dev, para os
+    # usuários de teste dos outros grupos entrarem com um POST só (RF60), e ligado nos demais.
+    obrigatorio: ${IDENTITY_EXIGIR_SEGUNDO_FATOR:}
+    # Base64 de 32 bytes, gerada por scripts/gerar-env.sh do infra. Vazia só no perfil dev.
+    chave: ${SEGUNDO_FATOR_CHAVE:}
+    emissor: ${SEGUNDO_FATOR_EMISSOR:Plataforma Integrada}    # nome que aparece no autenticador
+    validade-desafio: 5m                         # entre a senha e o código
   config:
     diretorio: /config                           # permissoes/ e modulos/ do infra, montados pelo compose
   servicos:

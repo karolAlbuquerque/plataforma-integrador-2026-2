@@ -1,26 +1,47 @@
-import type { Tema } from './tipos'
+import type { PreferenciaDeTema, Tema } from './tipos'
 
 /**
- * Tema claro ou escuro, escolhido na barra da casca e repassado aos módulos (plataforma:tema).
- * Por enquanto a preferência fica neste navegador; a coluna usuarios.preferencia_tema entra na onda 2.
+ * Tema claro ou escuro, repassado aos módulos (plataforma:tema). A preferência mora na conta
+ * (RF40) e vem no login; este navegador guarda a última só para a tela de entrada, antes de haver
+ * sessão. "sistema" segue o prefers-color-scheme e acompanha quando o sistema muda.
  */
 const CHAVE = 'plataforma:tema'
+const ESCURO = '(prefers-color-scheme: dark)'
 
-export function temaInicial(): Tema {
+export const ehPreferencia = (valor: unknown): valor is PreferenciaDeTema =>
+  valor === 'claro' || valor === 'escuro' || valor === 'sistema'
+
+export function preferenciaLocal(): PreferenciaDeTema {
   try {
-    const salvo = window.localStorage.getItem(CHAVE)
-    if (salvo === 'claro' || salvo === 'escuro') return salvo
+    const salva = window.localStorage.getItem(CHAVE)
+    if (ehPreferencia(salva)) return salva
   } catch {
-    // armazenamento bloqueado: segue a preferência do sistema
+    // armazenamento bloqueado: segue o sistema
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'
+  return 'sistema'
 }
 
-export function aplicarTema(tema: Tema) {
+export function resolverTema(preferencia: PreferenciaDeTema): Tema {
+  if (preferencia !== 'sistema') return preferencia
+  return window.matchMedia(ESCURO).matches ? 'escuro' : 'claro'
+}
+
+/** Aplica na página e lembra neste navegador. Devolve o tema resolvido. */
+export function aplicarPreferencia(preferencia: PreferenciaDeTema): Tema {
+  const tema = resolverTema(preferencia)
   document.documentElement.dataset.tema = tema
   try {
-    window.localStorage.setItem(CHAVE, tema)
+    window.localStorage.setItem(CHAVE, preferencia)
   } catch {
-    // sem armazenamento, o tema vale só até recarregar
+    // sem armazenamento, vale só até recarregar
   }
+  return tema
+}
+
+/** Avisa quando o tema do sistema muda — só interessa com a preferência "sistema". */
+export function aoMudarTemaDoSistema(ouvinte: (tema: Tema) => void) {
+  const consulta = window.matchMedia(ESCURO)
+  const aoMudar = (evento: MediaQueryListEvent) => ouvinte(evento.matches ? 'escuro' : 'claro')
+  consulta.addEventListener('change', aoMudar)
+  return () => consulta.removeEventListener('change', aoMudar)
 }

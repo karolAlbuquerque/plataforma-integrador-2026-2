@@ -29,8 +29,9 @@ public class ModuloController {
     public record ItemDoSubmenu(String rota, String nome) {
     }
 
+    /** busca: o módulo responde GET {prefixoApi}/busca (Contrato §8.6) e entra na busca global. */
     public record ModuloDoMenu(String codigo, String nome, String icone, String urlFrontend, String prefixoApi,
-                               int ordemMenu, boolean disponivel, List<ItemDoSubmenu> itensSubmenu) {
+                               int ordemMenu, boolean disponivel, List<ItemDoSubmenu> itensSubmenu, boolean busca) {
     }
 
     @GetMapping("/api/identity/modulos")
@@ -47,7 +48,8 @@ public class ModuloController {
                         modulo.itensSubmenu().stream()
                                 .filter(item -> permissoes.contains(item.permissao()))
                                 .map(item -> new ItemDoSubmenu(item.rota(), item.nome()))
-                                .toList()))
+                                .toList(),
+                        modulo.busca()))
                 .toList();
         return Resposta.ok(menu);
     }

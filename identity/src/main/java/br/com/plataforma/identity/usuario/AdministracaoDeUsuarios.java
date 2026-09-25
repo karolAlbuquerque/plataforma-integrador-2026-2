@@ -28,6 +28,8 @@ import br.com.plataforma.identity.senha.EnvioDeLinks;
 import br.com.plataforma.identity.senha.LinksDeSenha;
 import br.com.plataforma.identity.senha.LinksDeSenha.LinkEmitido;
 import br.com.plataforma.identity.senha.LinksDeSenha.Tipo;
+import br.com.plataforma.identity.segundofator.AvisosDeSegundoFator;
+import br.com.plataforma.identity.segundofator.SegundoFator;
 import br.com.plataforma.identity.seguranca.Ator;
 import br.com.plataforma.identity.usuario.UsuarioConsultas.UsuarioDetalhe;
 
@@ -52,7 +54,8 @@ public class AdministracaoDeUsuarios {
     private record Nomeado(UUID id, String nome) {
     }
 
-    private record Atual(UUID id, String nome, String email, String telefone, boolean ativo, boolean senhaDefinida) {
+    private record Atual(UUID id, String nome, String email, String telefone, boolean ativo, boolean senhaDefinida,
+                         boolean anonimizado) {
     }
 
     /** O que sai da transação para o envio do convite, que acontece depois do commit. */
@@ -67,11 +70,14 @@ public class AdministracaoDeUsuarios {
     private final RefreshTokens refreshTokens;
     private final Auditoria auditoria;
     private final TransactionTemplate transacao;
+    private final SegundoFator segundoFator;
+    private final AvisosDeSegundoFator avisos;
     private final Duration validadeDoConvite;
 
     public AdministracaoDeUsuarios(JdbcTemplate jdbc, UsuarioConsultas consultas, RegrasDeAcesso regras,
                                    LinksDeSenha links, EnvioDeLinks envio, RefreshTokens refreshTokens,
-                                   Auditoria auditoria, TransactionTemplate transacao,
+                                   Auditoria auditoria, TransactionTemplate transacao, SegundoFator segundoFator,
+                                   AvisosDeSegundoFator avisos,
                                    @Value("${identity.senha.validade-convite}") Duration validadeDoConvite) {
         this.jdbc = jdbc;
         this.consultas = consultas;
@@ -81,6 +87,8 @@ public class AdministracaoDeUsuarios {
         this.refreshTokens = refreshTokens;
         this.auditoria = auditoria;
         this.transacao = transacao;
+        this.segundoFator = segundoFator;
+        this.avisos = avisos;
         this.validadeDoConvite = validadeDoConvite;
     }
 
@@ -246,6 +254,25 @@ public class AdministracaoDeUsuarios {
         return new UsuarioSalvo(detalhe(ator, id), enviar(ator, convite));
     }
 
+    /**
+     * Para quem perdeu o celular e os códigos de recuperação (Requisito RF10): apaga o segundo fator,
+     * encerra as sessões e avisa por e-mail. No próximo login, o cadastro do aplicativo é pedido de novo.
+     */
+    public UsuarioSalvo redefinirSegundoFator(Ator ator, UUID id, Origem origem) {
+        Atual atual = transacao.execute(status -> {
+            Atual carregado = carregar(ator.tenant(), id);
+            regras.exigirQueTenha(ator, regras.permissoesDoUsuario(ator.tenant(), id), "id",
+                    "Este usuário tem permissões que você não tem.");
+            segundoFator.redefinir(id, ator.id());
+            int sessoes = refreshTokens.revogarTodos(id);
+            auditoria.registrar(ator.tenant(), ator.id(), origem.ip(), "redefinir", "segundo_fator", id,
+                    null, Map.of("sessoesEncerradas", sessoes));
+            return carregado;
+        });
+        avisos.redefinido(atual.nome(), atual.email(), ator.tenant());
+        return new UsuarioSalvo(detalhe(ator, id), null);
+    }
+
     // ------------------------------------------------------------------ apoio
 
     private Convite emitirConvite(Ator ator, UUID usuario, String nome, String email, String ip) {
@@ -264,13 +291,20 @@ public class AdministracaoDeUsuarios {
     }
 
     private Atual carregar(UUID tenant, UUID id) {
-        return jdbc.query("""
-                SELECT id, nome, email::text AS email, telefone, ativo, senha_hash IS NOT NULL AS senha_definida
+        Atual atual = jdbc.query("""
+                SELECT id, nome, email::text AS email, telefone, ativo, senha_hash IS NOT NULL AS senha_definida,
+                       anonimizado_em IS NOT NULL AS anonimizado
                   FROM identity.usuarios WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL
                    FOR UPDATE
                 """, (rs, linha) -> new Atual(rs.getObject("id", UUID.class), rs.getString("nome"), rs.getString("email"),
-                        rs.getString("telefone"), rs.getBoolean("ativo"), rs.getBoolean("senha_definida")),
+                        rs.getString("telefone"), rs.getBoolean("ativo"), rs.getBoolean("senha_definida"),
+                        rs.getBoolean("anonimizado")),
                 id, tenant).stream().findFirst().orElseThrow(AdministracaoDeUsuarios::naoEncontrado);
+        // Anonimizado não volta: reativar ou editar mandaria convite para um e-mail que não existe
+        if (atual.anonimizado()) {
+            throw ErroDeNegocio.regra("id", "USUARIO_ANONIMIZADO", "Este usuário foi anonimizado e não pode ser alterado.");
+        }
+        return atual;
     }
 
     /** Quem já era membro continua com a marcação de líder; quem entra, entra como membro comum. */
