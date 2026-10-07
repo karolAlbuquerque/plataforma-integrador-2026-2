@@ -6,16 +6,18 @@
 
 Esta versão mantém os requisitos da v0.2, de 14 de setembro, e acrescenta **a situação de cada um**: o que já está implementado e em qual onda de entrega. O método do levantamento, a rastreabilidade com o documento do cliente e a análise de riscos continuam na v0.2.
 
-## Situação em 25 de setembro
+## Situação em 25 de setembro, corrigida em 7 de outubro
+
+O quadro de 25 de setembro contava a onda 4 como não iniciada, citava 49 testes e tratava o plano de testes como pendente. Essas três leituras foram alinhadas ao código e ao plano de testes em 7 de outubro. O RNF13 passa a atendido, e os não funcionais atendidos sobem de 11 para 12.
 
 | | |
 |---|---|
 | Requisitos funcionais | 61 |
 | Requisitos não funcionais | 15 |
 | Funcionais implementados (ondas 1 a 4, já na branch principal) | 61 |
-| Não funcionais atendidos | 11 |
+| Não funcionais atendidos | 12 |
 
-As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usável (login, menu e permissões), a onda 2 trouxe administração de usuários, convite e recuperação de senha, e a onda 3 fechou os serviços transversais — timeline, notificações, e-mail e auditoria. A onda 4, ainda não iniciada, tem 2FA, tema na conta do usuário, busca global e exportação de dados pessoais.
+As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usável (login, menu e permissões), a onda 2 trouxe administração de usuários, convite e recuperação de senha, e a onda 3 fechou os serviços transversais — timeline, notificações, e-mail e auditoria. A onda 4, já na branch principal, tem 2FA, tema na conta do usuário, busca global e exportação de dados pessoais.
 
 ## Quadro geral
 
@@ -94,7 +96,7 @@ As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usáve
 | `RNF10` | Backup | Desejável | Pendente |
 | `RNF11` | Usabilidade | Importante | Parcial |
 | `RNF12` | Responsividade | Importante | Parcial |
-| `RNF13` | Documentação exigida na avaliação | Essencial | Em andamento |
+| `RNF13` | Documentação exigida na avaliação | Essencial | Atendido |
 | `RNF14` | Tecnologia definida | Essencial | Atendido |
 | `RNF15` | Padrão de mensageria | Essencial | Atendido |
 
@@ -812,7 +814,7 @@ O OpenAPI do `identity` vai para `infra-integrador-2026/contratos/identity.yaml`
 
 #### RNF08 — Testes
 
-**Prioridade:** Essencial · **Situação:** Atendido (49 testes automatizados, com Testcontainers, rodando a cada pull request)
+**Prioridade:** Essencial · **Situação:** Atendido (206 testes automatizados: 190 de unidade e integração, com Testcontainers, a cada pull request; 16 de ponta a ponta sob demanda)
 
 Unitários para as regras de permissão; integração com Testcontainers, para PostgreSQL e RabbitMQ; e, obrigatoriamente, testes de autorização e de isolamento entre empresas. Ponta a ponta para o caminho login, menu e abertura de módulo.
 
@@ -862,7 +864,7 @@ A casca funciona de 1920 a 360 pixels de largura. No celular, o menu vira gaveta
 
 #### RNF13 — Documentação exigida na avaliação
 
-**Prioridade:** Essencial · **Situação:** Em andamento (C4, MER/DER, dicionário de dados e manual entregues em 25/09; falta plano de testes)
+**Prioridade:** Essencial · **Situação:** Atendido (C4, MER/DER, dicionário de dados alinhado às migrations V1–V5, plano de testes e manual de implantação)
 
 Diagramas C4, MER e DER, dicionário de dados, DDL, Swagger ou coleção Postman, plano de testes e manual de implantação, mantidos junto do código e atualizados a cada entrega.
 
