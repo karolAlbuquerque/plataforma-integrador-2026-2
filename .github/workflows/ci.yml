@@ -48,6 +48,7 @@ jobs:
       - working-directory: casca
         run: |
           npm ci
+          npm test
           npm run build
 
   publicar-identity:

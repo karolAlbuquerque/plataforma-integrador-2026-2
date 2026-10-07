@@ -42,7 +42,7 @@ em memória: o que passa no teste é o mesmo SQL que roda em produção.
 
 ## 4. O que já está automatizado
 
-Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar. O CT-17, em 7 de outubro, soma o 17º teste de ponta a ponta — 207 no total.
+Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar. O CT-17, em 7 de outubro, soma o 17º teste de ponta a ponta. No mesmo dia, 10 testes de componente da casca passam a rodar no CI, sem o compose — 217 no total.
 
 | Suíte | O que cobre | Testes |
 |---|---|---|
@@ -61,6 +61,7 @@ Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, 
 | `GatewayTest`, `LimitePublicoFiltroTest` (gateway) | roteamento, 401 sem token, 503 e 504 de módulo fora do ar, limite por IP nas rotas públicas | 20 |
 | `SegurancaEIsolamentoTest`, `ConsumidorIdempotenteTest`, `RemetenteTest` (módulo de exemplo) | o que todo módulo precisa provar: 401, 403, isolamento por tenant e evento processado uma vez só | 14 |
 | `casca.spec.ts`, `onda3.spec.ts`, `onda4.spec.ts`, `responsividade.spec.ts` (Playwright, ponta a ponta) | login pelo navegador, sessão mantida ao recarregar, menu conforme permissão, módulo embutido recebendo a sessão, administração, convite pelo e-mail, notificação, auditoria, fim de sessão, segundo fator, tema, busca global e a casca em 360 px e 1920 px | 17 |
+| `Menu.test.tsx`, `Inicio.test.tsx`, `Casca.test.tsx` (Vitest, componente) | menu, cartões da tela de início e gaveta do celular, sem o compose | 10 |
 
 ## 5. Casos de teste de aceitação
 
@@ -107,7 +108,6 @@ conformidade, verificados em conjunto pelo Grupo 2 e pela equipe do módulo.
 
 | Lacuna | Risco | Como será tratada |
 |---|---|---|
-| Sem teste de componente isolado na casca | Baixo — o fluxo está coberto de ponta a ponta, mas um erro de componente só aparece no fluxo inteiro | Testes de componente na onda 4 |
 | Homologação sem ambiente definido | Médio — a validação de ponta a ponta é manual, na máquina de um integrante | Depende da decisão dos professores sobre o staging |
 | Sem teste de carga | Baixo no escopo do semestre | Declarado fora de escopo |
 | Testes dos demais módulos ainda não existem | Alto no fim do semestre | Checklist de conformidade cobrado por módulo, com o Grupo 2 acompanhando |
@@ -116,7 +116,6 @@ conformidade, verificados em conjunto pelo Grupo 2 e pela equipe do módulo.
 
 | Ação | Responsável | Prazo |
 |---|---|---|
-| Cobrir componentes isolados da casca | Karoline Albuquerque e Daniel Vieira | 09/10 |
 | Executar e registrar o roteiro de ponta a ponta da onda 3 | Karoline Albuquerque | 30/09 |
 | Levar o checklist de conformidade a cada grupo, começando pelos que já publicaram contrato | Karoline Albuquerque | 02/10 |
 | Repetir o roteiro de ponta a ponta no staging, quando existir | Karoline Albuquerque | a definir |
@@ -130,6 +129,9 @@ cd ../gateway && mvn -B verify
 
 # testes do módulo de exemplo
 cd infra-integrador-2026/exemplo-modulo/api && mvn -B verify
+
+# componentes da casca, sem o compose
+cd plataforma-integrador-2026-2/casca && npm test
 
 # ponta a ponta, com o ambiente no ar
 cd plataforma-integrador-2026-2/e2e && npm ci && npx playwright install chromium && npm test
