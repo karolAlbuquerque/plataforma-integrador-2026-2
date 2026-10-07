@@ -65,7 +65,7 @@ export function Cabecalho({ aoAbrirMenu, aoAbrirBusca }: { aoAbrirMenu: () => vo
         type="button"
         onClick={aoAbrirBusca}
         aria-keyshortcuts={MAC ? 'Meta+K' : 'Control+K'}
-        className="flex h-8 items-center gap-2 rounded-lg border border-borda px-2.5 text-xs text-texto-3 transition-colors hover:bg-superficie-2 hover:text-texto"
+        className="flex h-8 cursor-text items-center gap-2 rounded-lg border border-borda px-2.5 text-xs text-texto-3 transition-colors hover:bg-superficie-2 hover:text-texto"
       >
         <Search aria-hidden className="size-4" />
         <span className="hidden sm:inline">Buscar</span>

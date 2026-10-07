@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import { ProvedorDaCasca, type ContextoDaCasca, type EstadoDoMenu } from '../plataforma/contexto'
 import type { Sessao } from '../plataforma/sessao'
-import type { Eu, ModuloDoMenu } from '../plataforma/tipos'
+import type { Eu, ModuloDoMenu, Tema } from '../plataforma/tipos'
 
 export const moduloExemplo: ModuloDoMenu = {
   codigo: 'exemplo',
@@ -46,15 +46,16 @@ export function euDeTeste(permissoes = PERMISSOES): Eu {
 /** Renderiza um pedaço da casca com sessão, menu e permissões, sem API. */
 export function renderNaCasca(
   ui: ReactElement,
-  opcoes: { menu?: EstadoDoMenu; permissoes?: string[]; recarregarMenu?: () => void } = {},
+  opcoes: { menu?: EstadoDoMenu; permissoes?: string[]; recarregarMenu?: () => void; tema?: Tema } = {},
 ) {
   const permissoes = opcoes.permissoes ?? PERMISSOES
+  const tema = opcoes.tema ?? 'claro'
   const valor: ContextoDaCasca = {
     sessao: sessaoDeTeste(),
     eu: euDeTeste(permissoes),
     menu: opcoes.menu ?? { estado: 'pronto', modulos: [moduloExemplo] },
-    tema: 'claro',
-    preferenciaDeTema: 'claro',
+    tema,
+    preferenciaDeTema: tema,
     definirPreferenciaDeTema: () => {},
     alternarTema: () => {},
     recarregarMenu: opcoes.recarregarMenu ?? (() => {}),

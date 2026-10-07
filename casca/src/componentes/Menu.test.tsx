@@ -52,4 +52,16 @@ describe('BarraLateral', () => {
 
     expect(screen.getByRole('link', { name: /Exemplo\s*indisponível/ })).toBeVisible()
   })
+
+  it('no tema claro a barra é clara e no escuro a marca volta ao navy', () => {
+    const { unmount } = renderNaCasca(<BarraLateral recolhida={false} />)
+    const barra = screen.getByRole('navigation', { name: 'Principal' }).parentElement
+
+    expect(barra).toHaveClass('bg-superficie', 'dark:bg-brand-950')
+    expect(screen.getByText('Centinela')).toHaveClass('text-titulo')
+    unmount()
+
+    renderNaCasca(<BarraLateral recolhida={false} />, { tema: 'escuro' })
+    expect(screen.getByText('Centinela')).toHaveClass('text-white')
+  })
 })

@@ -42,7 +42,7 @@ em memória: o que passa no teste é o mesmo SQL que roda em produção.
 
 ## 4. O que já está automatizado
 
-Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar. O CT-17, em 7 de outubro, soma o 17º teste de ponta a ponta. No mesmo dia, 10 testes de componente da casca passam a rodar no CI, sem o compose — 217 no total.
+Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar. O CT-17, em 7 de outubro, soma o 17º teste de ponta a ponta. No mesmo dia, 11 testes de componente da casca passam a rodar no CI, sem o compose — 218 no total.
 
 | Suíte | O que cobre | Testes |
 |---|---|---|
@@ -61,7 +61,7 @@ Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, 
 | `GatewayTest`, `LimitePublicoFiltroTest` (gateway) | roteamento, 401 sem token, 503 e 504 de módulo fora do ar, limite por IP nas rotas públicas | 20 |
 | `SegurancaEIsolamentoTest`, `ConsumidorIdempotenteTest`, `RemetenteTest` (módulo de exemplo) | o que todo módulo precisa provar: 401, 403, isolamento por tenant e evento processado uma vez só | 14 |
 | `casca.spec.ts`, `onda3.spec.ts`, `onda4.spec.ts`, `responsividade.spec.ts` (Playwright, ponta a ponta) | login pelo navegador, sessão mantida ao recarregar, menu conforme permissão, módulo embutido recebendo a sessão, administração, convite pelo e-mail, notificação, auditoria, fim de sessão, segundo fator, tema, busca global e a casca em 360 px e 1920 px | 17 |
-| `Menu.test.tsx`, `Inicio.test.tsx`, `Casca.test.tsx` (Vitest, componente) | menu, cartões da tela de início e gaveta do celular, sem o compose | 10 |
+| `Menu.test.tsx`, `Inicio.test.tsx`, `Casca.test.tsx` (Vitest, componente) | menu, cartões da tela de início, gaveta do celular e a barra no tema claro, sem o compose | 11 |
 
 ## 5. Casos de teste de aceitação
 

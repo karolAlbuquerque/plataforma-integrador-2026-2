@@ -38,15 +38,15 @@ interface Props {
  * pelas permissões do usuário (RF33), e as telas de administração. Recolhida, mostra só os ícones.
  */
 export function BarraLateral({ recolhida, aoAlternar, aoNavegar }: Props) {
-  const { menu, tem, recarregarMenu } = useCasca()
+  const { menu, tem, recarregarMenu, tema } = useCasca()
   const rota = useRota()
   const administracao = itensDeAdministracao(tem)
   const ativo = caminhoDaRota(rota)
 
   return (
-    <div className="flex h-full flex-col bg-brand-950 text-gray-300">
-      <div className={cx('flex h-12 shrink-0 items-center border-b border-white/10', recolhida ? 'justify-center' : 'px-4')}>
-        <Marca compacta={recolhida} />
+    <div className="flex h-full flex-col border-r border-borda bg-superficie text-texto-2 dark:border-white/10 dark:bg-brand-950 dark:text-gray-300">
+      <div className={cx('flex h-12 shrink-0 items-center border-b border-borda dark:border-white/10', recolhida ? 'justify-center' : 'px-4')}>
+        <Marca compacta={recolhida} sobreEscuro={tema === 'escuro'} />
       </div>
 
       <nav aria-label="Principal" className="flex-1 overflow-x-hidden overflow-y-auto py-3">
@@ -56,19 +56,19 @@ export function BarraLateral({ recolhida, aoAlternar, aoNavegar }: Props) {
 
         <Grupo titulo="Módulos" recolhida={recolhida}>
           {menu.estado === 'carregando' &&
-            [0, 1, 2].map((i) => <li key={i} aria-hidden className="mx-3 my-2 h-5 animate-pulse rounded bg-white/10" />)}
+            [0, 1, 2].map((i) => <li key={i} aria-hidden className="mx-3 my-2 h-5 animate-pulse rounded bg-borda dark:bg-white/10" />)}
 
           {menu.estado === 'erro' && !recolhida && (
-            <li className="px-4 text-xs text-gray-400">
+            <li className="px-4 text-xs text-texto-3 dark:text-gray-400">
               Não foi possível carregar o menu.{' '}
-              <button type="button" onClick={recarregarMenu} className="inline-flex items-center gap-1 font-medium text-brand-300 hover:text-white">
+              <button type="button" onClick={recarregarMenu} className="inline-flex items-center gap-1 font-medium text-brand-700 hover:text-titulo dark:text-brand-300 dark:hover:text-white">
                 <RotateCw aria-hidden className="size-3" /> Tentar de novo
               </button>
             </li>
           )}
 
           {menu.estado === 'pronto' && menu.modulos.length === 0 && !recolhida && (
-            <li className="px-4 text-xs text-gray-400">Nenhum módulo liberado para o seu perfil.</li>
+            <li className="px-4 text-xs text-texto-3 dark:text-gray-400">Nenhum módulo liberado para o seu perfil.</li>
           )}
 
           {menu.estado === 'pronto' &&
@@ -86,7 +86,7 @@ export function BarraLateral({ recolhida, aoAlternar, aoNavegar }: Props) {
                   aoNavegar={aoNavegar}
                 >
                   {aberto && !recolhida && modulo.itensSubmenu.length > 0 && (
-                    <ul className="mt-0.5 mb-1 ml-8 border-l border-white/10 pl-2">
+                    <ul className="mt-0.5 mb-1 ml-8 border-l border-borda pl-2 dark:border-white/10">
                       {modulo.itensSubmenu.map((item) => {
                         const itemAtivo = subrotaAtiva(rota, modulo.codigo, item.rota)
                         return (
@@ -97,7 +97,7 @@ export function BarraLateral({ recolhida, aoAlternar, aoNavegar }: Props) {
                               aria-current={itemAtivo ? 'page' : undefined}
                               className={cx(
                                 'block rounded-lg px-2.5 py-1.5 text-xs transition-colors',
-                                itemAtivo ? 'font-semibold text-brand-400' : 'text-gray-400 hover:text-white',
+                                itemAtivo ? 'font-semibold text-brand-800 dark:text-brand-400' : 'text-texto-3 hover:text-titulo dark:text-gray-400 dark:hover:text-white',
                               )}
                             >
                               {item.nome}
@@ -135,7 +135,7 @@ export function BarraLateral({ recolhida, aoAlternar, aoNavegar }: Props) {
           onClick={aoAlternar}
           aria-label={recolhida ? 'Expandir o menu' : 'Recolher o menu'}
           className={cx(
-            'flex h-11 shrink-0 items-center gap-2 border-t border-white/10 text-xs text-brand-300 transition-colors hover:bg-brand-900 hover:text-white',
+            'flex h-11 shrink-0 items-center gap-2 border-t border-borda text-xs text-texto-3 transition-colors hover:bg-superficie-2 hover:text-titulo dark:border-white/10 dark:text-brand-300 dark:hover:bg-brand-900 dark:hover:text-white',
             recolhida ? 'justify-center' : 'px-4',
           )}
         >
@@ -150,9 +150,9 @@ function Grupo({ titulo, recolhida, children }: { titulo: string; recolhida: boo
   return (
     <div className="mt-4">
       {recolhida ? (
-        <hr aria-hidden className="mx-3 mb-2 border-white/10" />
+        <hr aria-hidden className="mx-3 mb-2 border-borda dark:border-white/10" />
       ) : (
-        <p className="mb-1 px-4 text-xs font-semibold tracking-wider text-brand-400 uppercase">{titulo}</p>
+        <p className="mb-1 px-4 text-xs font-semibold tracking-wider text-texto-3 uppercase dark:text-brand-400">{titulo}</p>
       )}
       <ul aria-label={titulo}>{children}</ul>
     </div>
@@ -181,7 +181,7 @@ function Item({ href, rotulo, icone, ativo, recolhida, indisponivel, aoNavegar, 
         className={cx(
           'relative mx-2 flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors',
           recolhida ? 'justify-center px-0' : 'px-2.5',
-          ativo ? 'bg-brand-700 font-medium text-white' : 'text-gray-300 hover:bg-brand-800 hover:text-white',
+          ativo ? 'bg-brand-700 font-medium text-white' : 'text-texto-2 hover:bg-brand-50 hover:text-titulo dark:text-gray-300 dark:hover:bg-brand-800 dark:hover:text-white',
         )}
       >
         {icone}
