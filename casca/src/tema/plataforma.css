@@ -87,4 +87,12 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-700;
   }
+  /* O Tailwind 4 não põe a mão no botão. O link continua com a do navegador, então na mesma faixa um item aponta e o botão ao lado não. */
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(:is(input[type="checkbox"], input[type="radio"]):not(:disabled)) {
+    @apply cursor-pointer;
+  }
 }

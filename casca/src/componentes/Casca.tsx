@@ -136,7 +136,7 @@ export function Casca({ sessao }: { sessao: Sessao }) {
                 type="button"
                 onClick={() => setGavetaAberta(false)}
                 aria-label="Fechar o menu"
-                className="absolute top-2 right-2 rounded-lg p-1.5 text-brand-300 hover:bg-brand-800 hover:text-white"
+                className="absolute top-2 right-2 rounded-lg p-1.5 text-texto-3 hover:bg-superficie-2 hover:text-titulo dark:text-brand-300 dark:hover:bg-brand-800 dark:hover:text-white"
               >
                 <X aria-hidden className="size-5" />
               </button>

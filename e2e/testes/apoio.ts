@@ -82,10 +82,13 @@ export async function entrar(page: Page, email: string, senha = SENHA) {
   await page.getByLabel('Senha', { exact: true }).fill(senha)
   await page.getByRole('button', { name: 'Entrar', exact: true }).click()
 
+  // Abaixo de 768 px o menu fica na gaveta: a casca pronta mostra "Abrir o menu", não a navegação (CT-17).
   const casca = page.getByRole('navigation', { name: 'Principal' })
+  const menuDoCelular = page.getByRole('button', { name: 'Abrir o menu' })
+  const pronta = casca.or(menuDoCelular)
   const codigo = page.getByRole('heading', { name: 'Verificação em duas etapas' })
   const cadastro = page.getByRole('heading', { name: 'Proteja a sua conta' })
-  await expect(casca.or(codigo).or(cadastro)).toBeVisible()
+  await expect(pronta.or(codigo).or(cadastro)).toBeVisible()
 
   if (await cadastro.isVisible()) {
     const segredo = ((await page.getByTestId('segredo-do-segundo-fator').textContent()) ?? '').replace(/\s/g, '')
@@ -98,7 +101,7 @@ export async function entrar(page: Page, email: string, senha = SENHA) {
     await page.getByLabel('Código', { exact: true }).fill(await codigoDe(email))
     await page.getByRole('button', { name: 'Entrar', exact: true }).click()
   }
-  await expect(casca).toBeVisible()
+  await expect(pronta).toBeVisible()
 }
 
 /** Sessão pela API, para os testes que só precisam de um token ou do id do usuário. */

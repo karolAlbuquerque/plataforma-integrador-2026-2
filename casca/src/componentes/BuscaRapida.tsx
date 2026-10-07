@@ -182,7 +182,7 @@ export function BuscaRapida({ aberta, aoFechar }: { aberta: boolean; aoFechar: (
           aria-expanded="true"
           aria-controls="busca-resultados"
           aria-activedescendant={encontrados[selecionado] ? `busca-${selecionado}` : undefined}
-          className="h-12 min-w-0 flex-1 bg-transparent text-sm text-texto outline-none placeholder:text-texto-3"
+          className="h-12 min-w-0 flex-1 cursor-text bg-transparent text-sm text-texto outline-none placeholder:text-texto-3"
         />
         {buscando && <LoaderCircle role="status" aria-label="Buscando nos módulos" className="size-4 shrink-0 animate-spin text-texto-3" />}
         <kbd className="rounded bg-superficie-2 px-1.5 py-0.5 text-xs text-texto-3">Esc</kbd>
