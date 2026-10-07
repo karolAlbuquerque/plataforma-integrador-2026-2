@@ -42,7 +42,7 @@ em memória: o que passa no teste é o mesmo SQL que roda em produção.
 
 ## 4. O que já está automatizado
 
-Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar.
+Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, em 34 classes, que rodam a cada pull request, e 16 de ponta a ponta com Playwright, executados contra o ambiente completo no ar. O CT-17, em 7 de outubro, soma o 17º teste de ponta a ponta — 207 no total.
 
 | Suíte | O que cobre | Testes |
 |---|---|---|
@@ -60,7 +60,7 @@ Em 25 de setembro, **206 testes automatizados**: 190 de unidade e integração, 
 | `CabecalhoDe32KbTest`, `MetricasTest`, `LimpezaDeRegistrosTest`, `AdministradorInicialTest`, `SuperficiePublicaTest`, `BaseIntegracao` | limite de cabeçalho, métricas, limpeza de registros antigos, administrador inicial, superfície pública e subida do contexto | 10 |
 | `GatewayTest`, `LimitePublicoFiltroTest` (gateway) | roteamento, 401 sem token, 503 e 504 de módulo fora do ar, limite por IP nas rotas públicas | 20 |
 | `SegurancaEIsolamentoTest`, `ConsumidorIdempotenteTest`, `RemetenteTest` (módulo de exemplo) | o que todo módulo precisa provar: 401, 403, isolamento por tenant e evento processado uma vez só | 14 |
-| `casca.spec.ts`, `onda3.spec.ts`, `onda4.spec.ts` (Playwright, ponta a ponta) | login pelo navegador, sessão mantida ao recarregar, menu conforme permissão, módulo embutido recebendo a sessão, administração, convite pelo e-mail, notificação, auditoria, fim de sessão, segundo fator, tema e busca global | 16 |
+| `casca.spec.ts`, `onda3.spec.ts`, `onda4.spec.ts`, `responsividade.spec.ts` (Playwright, ponta a ponta) | login pelo navegador, sessão mantida ao recarregar, menu conforme permissão, módulo embutido recebendo a sessão, administração, convite pelo e-mail, notificação, auditoria, fim de sessão, segundo fator, tema, busca global e a casca em 360 px e 1920 px | 17 |
 
 ## 5. Casos de teste de aceitação
 
@@ -85,7 +85,7 @@ automatizados, exceto os marcados como manuais.
 | CT-14 | RF45 | Rota pública recebendo rajada de requisições do mesmo IP | limite aplicado, com resposta no envelope padrão | Automatizado |
 | CT-15 | RF13, RF14 | Convite enviado, aceito e reutilizado | o link funciona uma vez e expira em 72 horas | Automatizado |
 | CT-16 | RF35 | Módulo aberto dentro da casca, em iframe | recebe a sessão, ajusta a altura e renova o token sem recarregar | Automatizado (Playwright) |
-| CT-17 | RNF12 | Casca aberta em telas de 360 px e 1920 px | menu e conteúdo utilizáveis nas duas | **Manual** |
+| CT-17 | RNF12 | Casca aberta em telas de 360 px e 1920 px | menu e conteúdo utilizáveis nas duas, sem rolagem horizontal | Automatizado (Playwright) |
 | CT-19 | RF10 | Ativar a verificação em duas etapas e entrar com o código | login pede o segundo passo; código de recuperação funciona uma vez só | Automatizado |
 | CT-20 | RF55 | Busca global com um termo que existe em mais de um módulo | resultados agrupados por módulo, no formato único do §8.6 | Automatizado |
 | CT-21 | RF56 | Usuário pede exportação dos próprios dados e a anonimização | arquivo entregue com os dados do usuário; anonimização preserva a auditoria | Automatizado |
@@ -116,7 +116,7 @@ conformidade, verificados em conjunto pelo Grupo 2 e pela equipe do módulo.
 
 | Ação | Responsável | Prazo |
 |---|---|---|
-| Automatizar CT-17 (responsividade) e cobrir componentes isolados da casca | Karoline Albuquerque e Daniel Vieira | 09/10 |
+| Cobrir componentes isolados da casca | Karoline Albuquerque e Daniel Vieira | 09/10 |
 | Executar e registrar o roteiro de ponta a ponta da onda 3 | Karoline Albuquerque | 30/09 |
 | Levar o checklist de conformidade a cada grupo, começando pelos que já publicaram contrato | Karoline Albuquerque | 02/10 |
 | Repetir o roteiro de ponta a ponta no staging, quando existir | Karoline Albuquerque | a definir |
