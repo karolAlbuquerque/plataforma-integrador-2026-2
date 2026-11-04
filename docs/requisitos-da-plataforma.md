@@ -15,7 +15,7 @@ O quadro de 25 de setembro contava a onda 4 como não iniciada, citava 49 testes
 | Requisitos funcionais | 61 |
 | Requisitos não funcionais | 15 |
 | Funcionais implementados (ondas 1 a 4, já na branch principal) | 61 |
-| Não funcionais atendidos | 12 |
+| Não funcionais atendidos | 13 |
 
 As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usável (login, menu e permissões), a onda 2 trouxe administração de usuários, convite e recuperação de senha, e a onda 3 fechou os serviços transversais — timeline, notificações, e-mail e auditoria. A onda 4, já na branch principal, tem 2FA, tema na conta do usuário, busca global e exportação de dados pessoais.
 
@@ -93,7 +93,7 @@ As ondas são o recorte de entrega da plataforma: a onda 1 deixou a casca usáve
 | `RNF07` | Contrato publicado antes da implementação | Essencial | Atendido |
 | `RNF08` | Testes | Essencial | Atendido |
 | `RNF09` | Ambientes e implantação | Importante | Atendido |
-| `RNF10` | Backup | Desejável | Pendente |
+| `RNF10` | Backup | Desejável | Atendido |
 | `RNF11` | Usabilidade | Importante | Parcial |
 | `RNF12` | Responsividade | Importante | Parcial |
 | `RNF13` | Documentação exigida na avaliação | Essencial | Atendido |
@@ -834,7 +834,7 @@ Desenvolvimento, *staging* e produção separados. Um `docker compose up` no rep
 
 #### RNF10 — Backup
 
-**Prioridade:** Desejável · **Situação:** Pendente (backup depende do ambiente de produção, ainda sem definição)
+**Prioridade:** Desejável · **Situação:** Atendido (`scripts/backup-banco.sh` com retenção de 7 dias e agendamento no staging)
 
 Backup diário do banco, retenção de sete dias e procedimento de restauração documentado.
 
