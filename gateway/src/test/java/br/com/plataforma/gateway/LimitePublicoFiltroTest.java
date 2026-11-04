@@ -84,6 +84,24 @@ class LimitePublicoFiltroTest {
         assertThat(RegistroDeAcessoFiltro.moduloDe("/")).isNull();
     }
 
+    @Test
+    void confiarProxyUsaAUltimaEntradaValidaDeXForwardedForIgnorandoAsDoCliente() {
+        CabecalhosDoNavegadorFiltro comProxy = new CabecalhosDoNavegadorFiltro(true);
+        MockServerWebExchange troca = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/public/landing/x")
+                        .remoteAddress(new InetSocketAddress("172.18.0.5", 50_000))
+                        .header("X-Forwarded-For", "9.9.9.9, 198.51.100.42")
+                        .header("X-Forwarded-Proto", "https")
+                        .header("X-Tenant-Id", "a0000000-0000-4000-8000-00000000000a"));
+
+        comProxy.filter(troca, reescrita -> {
+            assertThat(reescrita.getRequest().getHeaders().getFirst("X-Forwarded-For")).isEqualTo("198.51.100.42");
+            assertThat(reescrita.getRequest().getHeaders().getFirst("X-Forwarded-Proto")).isNull();
+            assertThat(reescrita.getRequest().getHeaders().getFirst("X-Tenant-Id")).isNull();
+            return filtro.filter(reescrita, t -> Mono.empty());
+        }).block();
+    }
+
     private MockServerHttpResponse chamar(String caminho, String ip) {
         MockServerWebExchange troca = troca(caminho, ip);
         filtro.filter(troca, t -> Mono.empty()).block();
