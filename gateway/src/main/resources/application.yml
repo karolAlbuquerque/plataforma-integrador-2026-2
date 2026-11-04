@@ -34,6 +34,9 @@ gateway:
   cors-origens: ${CORS_ORIGENS:}
   # Requisições por minuto, por IP, em /public/** (RF45). Zero desliga.
   limite-publico-por-minuto: ${LIMITE_PUBLICO_POR_MINUTO:120}
+  # Em staging/produção, com o gateway acessível só pelo proxy reverso na rede interna, lê o último
+  # IP de X-Forwarded-For acrescentado pelo proxy.
+  confiar-proxy: ${CONFIAR_PROXY:false}
 
 # Métricas numa porta interna, que o compose não publica (RNF04). A 8080 continua só com as rotas.
 management:

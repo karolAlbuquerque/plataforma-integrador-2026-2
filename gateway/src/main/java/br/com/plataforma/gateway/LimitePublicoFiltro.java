@@ -85,6 +85,10 @@ public class LimitePublicoFiltro implements WebFilter, Ordered {
     }
 
     private static String ip(ServerWebExchange troca) {
+        String encaminhado = troca.getRequest().getHeaders().getFirst(CabecalhosDoNavegadorFiltro.ENCAMINHADO_PARA);
+        if (encaminhado != null && !encaminhado.isBlank()) {
+            return encaminhado;
+        }
         InetSocketAddress remoto = troca.getRequest().getRemoteAddress();
         return remoto == null || remoto.getAddress() == null ? "desconhecido" : remoto.getAddress().getHostAddress();
     }
