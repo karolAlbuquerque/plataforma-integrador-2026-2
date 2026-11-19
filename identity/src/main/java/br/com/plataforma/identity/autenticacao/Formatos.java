@@ -10,6 +10,7 @@ import br.com.plataforma.identity.seguranca.TokenEmitido;
 import br.com.plataforma.identity.usuario.UsuarioAutenticado;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /** Corpos de entrada e saída das rotas de sessão, como em contratos/identity.yaml. */
@@ -114,5 +115,10 @@ public final class Formatos {
     }
 
     public record TokenDeServico(String accessToken, long expiresIn) {
+    }
+
+    public record TrocaDeTenant(
+            @NotNull(message = "Informe a empresa.")
+            UUID tenantId) {
     }
 }

@@ -1,9 +1,12 @@
-import { useEffect } from 'react'
-import { LogOut, Menu as IconeMenu, Moon, Search, Sun, UserRound } from 'lucide-react'
-import { iniciais } from '@/components/ui'
+import { useEffect, useState } from 'react'
+import { Building2, Check, ChevronDown, LoaderCircle, LogOut, Menu as IconeMenu, Moon, Search, Settings2, Sun, UserRound } from 'lucide-react'
+import { cx, iniciais } from '@/components/ui'
+import { api, mensagemDe } from '../plataforma/api'
+import { avisar } from '../plataforma/avisos'
 import { ADMINISTRACAO, useCasca, type EstadoDoMenu } from '../plataforma/contexto'
 import { useRota, type Rota } from '../plataforma/rotas'
-import { sair } from '../plataforma/sessao'
+import { sair, trocarTenant } from '../plataforma/sessao'
+import type { Pagina, TenantDaLista } from '../plataforma/tipos'
 import { Link, Popover } from './Link'
 import { SinoDeNotificacoes } from './Notificacoes'
 
@@ -20,6 +23,7 @@ export function migalhas(rota: Rota, menu: EstadoDoMenu): string[] {
     case 'perfil': return [...adm('/admin/perfis'), 'Permissões']
     case 'equipes': return adm('/admin/equipes')
     case 'auditoria': return adm('/admin/auditoria')
+    case 'tenants': return adm('/admin/tenants')
     case 'modulo': {
       const modulo = menu.estado === 'pronto' ? menu.modulos.find((m) => m.codigo === rota.codigo) : undefined
       if (!modulo) return ['Módulos']
@@ -36,9 +40,10 @@ const ITEM_DO_MENU = 'flex w-full items-center gap-2.5 px-4 py-2 text-left text-
 
 /** Header global (Tela 1): migalhas, busca, notificações e o avatar com o menu do usuário. */
 export function Cabecalho({ aoAbrirMenu, aoAbrirBusca }: { aoAbrirMenu: () => void; aoAbrirBusca: () => void }) {
-  const { sessao, eu, tema, alternarTema, menu } = useCasca()
+  const { sessao, eu, tema, alternarTema, menu, tem } = useCasca()
   const rota = useRota()
   const partes = migalhas(rota, menu)
+  const administraTenants = tem('identity.tenant.administrar')
 
   useEffect(() => {
     document.title = `${partes[partes.length - 1]} · Centinela`
@@ -60,6 +65,12 @@ export function Cabecalho({ aoAbrirMenu, aoAbrirBusca }: { aoAbrirMenu: () => vo
           ))}
         </ol>
       </nav>
+
+      <SeletorDeTenant
+        tenantAtualId={sessao.usuario.tenantId}
+        tenantAtualNome={eu?.tenant.nome ?? null}
+        administraTenants={administraTenants}
+      />
 
       <button
         type="button"
@@ -105,5 +116,123 @@ export function Cabecalho({ aoAbrirMenu, aoAbrirBusca }: { aoAbrirMenu: () => vo
         )}
       </Popover>
     </header>
+  )
+}
+
+function SeletorDeTenant({
+  tenantAtualId,
+  tenantAtualNome,
+  administraTenants,
+}: {
+  tenantAtualId: string
+  tenantAtualNome: string | null
+  administraTenants: boolean
+}) {
+  return (
+    <Popover
+      rotulo="Alternar empresa"
+      largura="w-72"
+      classeDoGatilho="flex h-8 items-center gap-1.5 rounded-lg border border-borda bg-superficie px-2.5 text-xs font-medium text-titulo transition-colors hover:bg-superficie-2"
+      gatilho={
+        <>
+          <Building2 aria-hidden className="size-3.5 shrink-0 text-brand-700 dark:text-brand-400" />
+          <span className="max-w-28 truncate sm:max-w-40">{tenantAtualNome ?? 'Empresa'}</span>
+          <ChevronDown aria-hidden className="size-3.5 shrink-0 text-texto-3" />
+        </>
+      }
+    >
+      {(fechar) => <ListaDeTenantsDoPopover tenantAtualId={tenantAtualId} administraTenants={administraTenants} aoFechar={fechar} />}
+    </Popover>
+  )
+}
+
+function ListaDeTenantsDoPopover({
+  tenantAtualId,
+  administraTenants,
+  aoFechar,
+}: {
+  tenantAtualId: string
+  administraTenants: boolean
+  aoFechar: () => void
+}) {
+  const [tenants, setTenants] = useState<TenantDaLista[] | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const [trocando, setTrocando] = useState<string | null>(null)
+
+  useEffect(() => {
+    let ativo = true
+    const promessa = administraTenants
+      ? api.get<Pagina<TenantDaLista>>('/api/identity/tenants?situacao=ativo&tamanho=50').then((p) => p.itens)
+      : api.get<TenantDaLista[]>('/api/identity/auth/tenants')
+    promessa
+      .then((itens) => { if (ativo) setTenants(itens) })
+      .catch((e: unknown) => { if (ativo) setErro(mensagemDe(e)) })
+    return () => { ativo = false }
+  }, [administraTenants])
+
+  async function escolher(tenant: TenantDaLista) {
+    if (tenant.id === tenantAtualId) {
+      aoFechar()
+      return
+    }
+    setTrocando(tenant.id)
+    try {
+      await trocarTenant(tenant.id)
+      avisar('sucesso', `Contexto alterado para ${tenant.nomeFantasia || tenant.razaoSocial}.`)
+      aoFechar()
+    } catch (e) {
+      avisar('erro', mensagemDe(e))
+      setTrocando(null)
+    }
+  }
+
+  return (
+    <div>
+      <div className="border-b border-borda px-4 py-2.5">
+        <p className="text-xs font-semibold tracking-wider text-texto-3 uppercase">Empresa ativa (tenant)</p>
+      </div>
+      <div className="max-h-64 overflow-y-auto py-1">
+        {!tenants && !erro && (
+          <p className="flex items-center justify-center gap-2 py-4 text-xs text-texto-3">
+            <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> Carregando empresas…
+          </p>
+        )}
+        {erro && <p className="px-4 py-3 text-xs text-red-600">{erro}</p>}
+        {tenants && tenants.map((tenant) => {
+          const nome = tenant.nomeFantasia || tenant.razaoSocial
+          const selecionado = tenant.id === tenantAtualId
+          return (
+            <button
+              key={tenant.id}
+              type="button"
+              disabled={trocando !== null}
+              onClick={() => void escolher(tenant)}
+              className={cx(
+                'flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors hover:bg-superficie-2',
+                selecionado ? 'font-semibold text-brand-800 dark:text-brand-300' : 'text-texto',
+              )}
+            >
+              <Building2 aria-hidden className="size-4 shrink-0 text-texto-3" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{nome}</span>
+                {tenant.subdominio && <span className="block truncate font-mono text-[11px] font-normal text-texto-3">{tenant.subdominio}</span>}
+              </span>
+              {trocando === tenant.id ? (
+                <LoaderCircle aria-hidden className="size-4 shrink-0 animate-spin text-brand-700" />
+              ) : (
+                selecionado && <Check aria-hidden className="size-4 shrink-0 text-brand-700 dark:text-brand-400" />
+              )}
+            </button>
+          )
+        })}
+      </div>
+      {administraTenants && (
+        <div className="border-t border-borda py-1">
+          <Link href="/admin/tenants" onNavigate={aoFechar} className={ITEM_DO_MENU}>
+            <Settings2 aria-hidden className="size-4 shrink-0 text-texto-3" /> Gerenciar empresas
+          </Link>
+        </div>
+      )}
+    </div>
   )
 }

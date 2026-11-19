@@ -87,10 +87,10 @@ public class RegrasDeAcesso {
                 TRAVA_DE_ADMINISTRACAO, tenant.toString());
         Integer administradores = jdbc.queryForObject("""
                 SELECT count(*) FROM identity.usuarios u
-                 WHERE u.tenant_id = ? AND u.ativo AND u.deleted_at IS NULL
+                 WHERE u.ativo AND u.deleted_at IS NULL
                    AND (SELECT count(DISTINCT pe.codigo)
                           FROM identity.usuario_perfis up
-                          JOIN identity.perfis p ON p.id = up.perfil_id AND p.deleted_at IS NULL
+                          JOIN identity.perfis p ON p.id = up.perfil_id AND p.tenant_id = ? AND p.deleted_at IS NULL
                           JOIN identity.perfil_permissoes pp ON pp.perfil_id = p.id
                           JOIN identity.permissoes pe ON pe.id = pp.permissao_id
                          WHERE up.usuario_id = u.id AND pe.codigo = ANY(string_to_array(?, ','))) = ?

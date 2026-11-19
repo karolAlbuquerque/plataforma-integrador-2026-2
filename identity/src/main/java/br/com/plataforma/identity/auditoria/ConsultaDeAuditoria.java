@@ -106,7 +106,7 @@ public class ConsultaDeAuditoria {
             SELECT a.id, a.created_at, a.usuario_id, coalesce(u.nome, 'Usuário removido') AS nome, host(a.ip) AS ip,
                    a.acao, a.entidade, a.entidade_id, a.valor_anterior::text AS anterior, a.valor_novo::text AS novo
               FROM identity.audit_logs a
-              LEFT JOIN identity.usuarios u ON u.id = a.usuario_id AND u.tenant_id = a.tenant_id
+              LEFT JOIN identity.usuarios u ON u.id = a.usuario_id
             """;
 
     private record Condicoes(String sql, List<Object> parametros) {

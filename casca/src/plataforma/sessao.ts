@@ -234,3 +234,34 @@ export async function sair(todas = false) {
     definir(null, 'Você saiu da plataforma.')
   }
 }
+
+/**
+ * Alterna a sessão para outro tenant ativo (Seletor de Empresa na casca). Emite um novo access
+ * token com o tenant_id escolhido, rotaciona o cookie de refresh e notifica toda a casca.
+ */
+export async function trocarTenant(tenantId: string): Promise<Sessao> {
+  if (!atual) {
+    throw new ErroDeEntrada('Sessão encerrada. Entre novamente.')
+  }
+  let resposta: Response
+  try {
+    resposta = await fetch('/api/identity/auth/tenant', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${atual.token}`,
+      },
+      body: JSON.stringify({ tenantId }),
+    })
+  } catch {
+    throw new ErroDeEntrada('Sem conexão com a plataforma. Confira a rede e tente de novo.')
+  }
+  const envelope = await lerEnvelope<SessaoAberta>(resposta)
+  if (!resposta.ok || !envelope?.success || !envelope.data) {
+    throw new ErroDeEntrada(envelope?.message ?? 'Não foi possível alternar de empresa.', envelope?.errors?.[0]?.codigo)
+  }
+  const nova = deResposta(envelope.data)
+  definir(nova)
+  return nova
+}

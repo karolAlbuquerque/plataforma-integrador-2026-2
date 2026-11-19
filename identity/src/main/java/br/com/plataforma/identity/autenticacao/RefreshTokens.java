@@ -27,7 +27,8 @@ public class RefreshTokens {
         this.jdbc = jdbc;
     }
 
-    public record Registro(UUID id, UUID usuarioId, UUID sessaoId, Instant iniciadaEm, Instant expiraEm, boolean revogado) {
+    public record Registro(UUID id, UUID usuarioId, UUID sessaoId, Instant iniciadaEm, Instant expiraEm, boolean revogado,
+                           UUID tenantId) {
 
         public boolean valido() {
             return !revogado && expiraEm.isAfter(Instant.now());
@@ -41,21 +42,27 @@ public class RefreshTokens {
 
     /** Sessão nova, aberta pelo login. */
     public void criar(UUID usuario, String token, Instant expiraEm, Origem origem) {
-        continuar(usuario, token, expiraEm, origem, UUID.randomUUID(), Instant.now());
+        continuar(usuario, token, expiraEm, origem, UUID.randomUUID(), Instant.now(), null);
     }
 
     /** Próximo elo de uma sessão que já existe: mesma sessão, mesmo início, mesmo fim. */
     public void continuar(UUID usuario, String token, Instant expiraEm, Origem origem, UUID sessaoId, Instant iniciadaEm) {
+        continuar(usuario, token, expiraEm, origem, sessaoId, iniciadaEm, null);
+    }
+
+    /** Próximo elo mantendo o tenant escolhido na troca de empresa (nulo = tenant de origem do usuário). */
+    public void continuar(UUID usuario, String token, Instant expiraEm, Origem origem, UUID sessaoId, Instant iniciadaEm,
+                          UUID tenantId) {
         jdbc.update("""
-                INSERT INTO identity.refresh_tokens (id, usuario_id, token_hash, expira_em, ip, user_agent, sessao_id, iniciada_em)
-                VALUES (?, ?, ?, ?, ?::inet, ?, ?, ?)
+                INSERT INTO identity.refresh_tokens (id, usuario_id, token_hash, expira_em, ip, user_agent, sessao_id, iniciada_em, tenant_id)
+                VALUES (?, ?, ?, ?, ?::inet, ?, ?, ?, ?)
                 """, UUID.randomUUID(), usuario, TokenOpaco.hash(token), utc(expiraEm), origem.ip(), origem.userAgent(),
-                sessaoId, utc(iniciadaEm));
+                sessaoId, utc(iniciadaEm), tenantId);
     }
 
     public Optional<Registro> buscar(String token) {
         return jdbc.query("""
-                SELECT id, usuario_id, sessao_id, iniciada_em, expira_em, revogado_em IS NOT NULL AS revogado
+                SELECT id, usuario_id, sessao_id, iniciada_em, expira_em, revogado_em IS NOT NULL AS revogado, tenant_id
                   FROM identity.refresh_tokens WHERE token_hash = ?
                 """, (rs, linha) -> new Registro(
                         rs.getObject("id", UUID.class),
@@ -63,7 +70,8 @@ public class RefreshTokens {
                         rs.getObject("sessao_id", UUID.class),
                         rs.getObject("iniciada_em", OffsetDateTime.class).toInstant(),
                         rs.getObject("expira_em", OffsetDateTime.class).toInstant(),
-                        rs.getBoolean("revogado")),
+                        rs.getBoolean("revogado"),
+                        rs.getObject("tenant_id", UUID.class)),
                 TokenOpaco.hash(token)).stream().findFirst();
     }
 
@@ -99,6 +107,18 @@ public class RefreshTokens {
 
     public int revogarTodos(UUID usuario) {
         return jdbc.update("UPDATE identity.refresh_tokens SET revogado_em = now() WHERE usuario_id = ? AND revogado_em IS NULL", usuario);
+    }
+
+    /** Encerra as sessões dos usuários de um tenant desativado e de quem estava operando nele (RF27). */
+    public int revogarDoTenant(UUID tenant) {
+        return jdbc.update("""
+                UPDATE identity.refresh_tokens rt
+                   SET revogado_em = now()
+                  FROM identity.usuarios u
+                 WHERE rt.usuario_id = u.id
+                   AND rt.revogado_em IS NULL
+                   AND (u.tenant_id = ? OR rt.tenant_id = ?)
+                """, tenant, tenant);
     }
 
     /** @return quantas linhas foram revogadas; zero se a sessão não existe, já acabou ou é de outro usuário */

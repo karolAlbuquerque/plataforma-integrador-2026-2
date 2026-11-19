@@ -42,13 +42,21 @@ public class UsuarioRepositorio {
 
     /** Perfis, permissões (a união das de todos os perfis) e equipes, lidos na hora da emissão. */
     public UsuarioAutenticado carregarAcessos(UsuarioDeLogin usuario) {
-        List<String> perfis = jdbc.queryForList("""
-                SELECT p.nome
-                  FROM identity.usuario_perfis up
-                  JOIN identity.perfis p ON p.id = up.perfil_id
-                 WHERE up.usuario_id = ? AND p.tenant_id = ? AND p.deleted_at IS NULL
-                 ORDER BY p.nome
-                """, String.class, usuario.id(), usuario.tenantId());
+        return carregarAcessosNoTenant(usuario, usuario.tenantId());
+    }
+
+    /**
+     * Acessos do usuário quando opera em {@code tenantAlvo}. Se ele não possui perfis vinculados
+     * diretamente a {@code tenantAlvo} (administrador alternando de empresa), mantém os perfis e
+     * permissões do seu tenant de origem, com o claim {@code tenant_id} apontando para {@code tenantAlvo}.
+     */
+    public UsuarioAutenticado carregarAcessosNoTenant(UsuarioDeLogin usuario, UUID tenantAlvo) {
+        UUID tenantDosPerfis = tenantAlvo;
+        List<String> perfis = perfisNoTenant(usuario.id(), tenantDosPerfis);
+        if (perfis.isEmpty() && !tenantAlvo.equals(usuario.tenantId())) {
+            tenantDosPerfis = usuario.tenantId();
+            perfis = perfisNoTenant(usuario.id(), tenantDosPerfis);
+        }
 
         List<String> permissoes = jdbc.queryForList("""
                 SELECT DISTINCT pe.codigo
@@ -58,7 +66,7 @@ public class UsuarioRepositorio {
                   JOIN identity.permissoes pe ON pe.id = pp.permissao_id
                  WHERE up.usuario_id = ? AND p.tenant_id = ? AND p.deleted_at IS NULL
                  ORDER BY pe.codigo
-                """, String.class, usuario.id(), usuario.tenantId());
+                """, String.class, usuario.id(), tenantDosPerfis);
 
         List<UUID> equipes = jdbc.queryForList("""
                 SELECT e.id
@@ -66,10 +74,39 @@ public class UsuarioRepositorio {
                   JOIN identity.equipes e ON e.id = ue.equipe_id
                  WHERE ue.usuario_id = ? AND e.tenant_id = ? AND e.deleted_at IS NULL
                  ORDER BY e.id
-                """, UUID.class, usuario.id(), usuario.tenantId());
+                """, UUID.class, usuario.id(), tenantAlvo);
 
-        return new UsuarioAutenticado(usuario.id(), usuario.tenantId(), usuario.nome(), usuario.email(),
+        return new UsuarioAutenticado(usuario.id(), tenantAlvo, usuario.nome(), usuario.email(),
                 perfis, permissoes, equipes);
+    }
+
+    private List<String> perfisNoTenant(UUID usuarioId, UUID tenantId) {
+        return jdbc.queryForList("""
+                SELECT p.nome
+                  FROM identity.usuario_perfis up
+                  JOIN identity.perfis p ON p.id = up.perfil_id
+                 WHERE up.usuario_id = ? AND p.tenant_id = ? AND p.deleted_at IS NULL
+                 ORDER BY p.nome
+                """, String.class, usuarioId, tenantId);
+    }
+
+    /** Vincula o usuário ao perfil ADMINISTRADOR do tenant quando ele ainda não possui nenhum perfil lá. */
+    public void vincularComoAdministradorSeSemPerfil(UUID usuarioId, UUID tenantId) {
+        Boolean jaTem = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM identity.usuario_perfis up
+                      JOIN identity.perfis p ON p.id = up.perfil_id
+                     WHERE up.usuario_id = ? AND p.tenant_id = ? AND p.deleted_at IS NULL
+                )
+                """, Boolean.class, usuarioId, tenantId);
+        if (!Boolean.TRUE.equals(jaTem)) {
+            jdbc.update("""
+                    INSERT INTO identity.usuario_perfis (usuario_id, perfil_id)
+                    SELECT ?, p.id FROM identity.perfis p
+                     WHERE p.tenant_id = ? AND p.nome = 'ADMINISTRADOR' AND p.sistema AND p.deleted_at IS NULL
+                    ON CONFLICT DO NOTHING
+                    """, usuarioId, tenantId);
+        }
     }
 
     /** Preferência de tema da conta (Requisito RF40); "sistema" se o usuário não existir mais. */
@@ -91,9 +128,15 @@ public class UsuarioRepositorio {
     /** Destinatário de notificação precisa existir e ser do tenant da mensagem. */
     public boolean pertenceAoTenant(UUID usuario, UUID tenant) {
         Boolean existe = jdbc.queryForObject("""
-                SELECT EXISTS (SELECT 1 FROM identity.usuarios
-                                WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL)
-                """, Boolean.class, usuario, tenant);
+                SELECT EXISTS (
+                    SELECT 1 FROM identity.usuarios u
+                     WHERE u.id = ? AND u.deleted_at IS NULL
+                       AND (u.tenant_id = ?
+                            OR EXISTS (SELECT 1 FROM identity.usuario_perfis up
+                                         JOIN identity.perfis p ON p.id = up.perfil_id
+                                        WHERE up.usuario_id = u.id AND p.tenant_id = ? AND p.deleted_at IS NULL))
+                )
+                """, Boolean.class, usuario, tenant, tenant);
         return Boolean.TRUE.equals(existe);
     }
 

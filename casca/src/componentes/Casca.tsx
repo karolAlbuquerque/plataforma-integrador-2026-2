@@ -11,6 +11,7 @@ import { Auditoria } from '../telas/admin/Auditoria'
 import { Equipes } from '../telas/admin/Equipes'
 import { Matriz } from '../telas/admin/Matriz'
 import { Perfis } from '../telas/admin/Perfis'
+import { Tenants } from '../telas/admin/Tenants'
 import { Usuarios } from '../telas/admin/Usuarios'
 import { Conta } from '../telas/Conta'
 import { PaginaNaoEncontrada, Protegida } from '../telas/Estados'
@@ -146,7 +147,7 @@ export function Casca({ sessao }: { sessao: Sessao }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <Cabecalho aoAbrirMenu={() => setGavetaAberta(true)} aoAbrirBusca={() => setBuscaAberta(true)} />
-          <main className="flex min-w-0 flex-1 flex-col">
+          <main key={sessao.usuario.tenantId} className="flex min-w-0 flex-1 flex-col">
             <Tela rota={rota} menu={menu} sessao={sessao} tema={tema} />
           </main>
         </div>
@@ -186,6 +187,8 @@ function Tela({ rota, menu, sessao, tema }: { rota: Rota; menu: EstadoDoMenu; se
       return <Protegida permissao="identity.equipe.ver_resumo"><Equipes /></Protegida>
     case 'auditoria':
       return <Protegida permissao="identity.auditoria.ver"><Auditoria /></Protegida>
+    case 'tenants':
+      return <Protegida permissao="identity.tenant.administrar"><Tenants /></Protegida>
     default:
       return <PaginaNaoEncontrada />
   }

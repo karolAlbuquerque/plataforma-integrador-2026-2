@@ -259,3 +259,41 @@ export interface RegistroDeAuditoria {
   valorAnterior: Record<string, unknown> | null
   valorNovo: Record<string, unknown> | null
 }
+
+// ------------------------------------------------------------------ empresas contratantes (tenants — RF27)
+
+export interface TenantDaLista {
+  id: string
+  razaoSocial: string
+  nomeFantasia: string | null
+  cnpj: string | null
+  subdominio: string | null
+  ativo: boolean
+  totalUsuarios: number
+  atual: boolean
+  criadoEm: string
+}
+
+export interface TenantDetalhe extends TenantDaLista {
+  totalPerfis: number
+  totalEquipes: number
+}
+
+export interface TenantSalvo {
+  tenant: TenantDetalhe
+  administradorId: string | null
+  conviteEnviado: boolean | null
+}
+
+export interface UsuariosDoTenant {
+  usuarios: UsuarioDaLista[]
+  perfisDisponiveis: PerfilDoUsuario[]
+}
+
+export interface CandidatoDoTenant {
+  id: string
+  nome: string
+  email: string
+  empresaOrigem: string
+}
+

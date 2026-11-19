@@ -98,8 +98,8 @@ public class ContaController {
         String telefone = corpo.telefone() == null || corpo.telefone().isBlank() ? null : corpo.telefone().strip();
         jdbc.update("""
                 UPDATE identity.usuarios SET nome = ?, telefone = ?, updated_at = now(), updated_by = ?
-                 WHERE id = ? AND tenant_id = ?
-                """, nome, telefone, ator.id(), ator.id(), ator.tenant());
+                 WHERE id = ? AND deleted_at IS NULL
+                """, nome, telefone, ator.id(), ator.id());
 
         Map<String, Object> anterior = new LinkedHashMap<>();
         Map<String, Object> novo = new LinkedHashMap<>();
@@ -122,8 +122,8 @@ public class ContaController {
     @PutMapping("/tema")
     public Resposta<Tema> trocarTema(@Valid @RequestBody Tema corpo, @AuthenticationPrincipal Jwt jwt) {
         Ator ator = Ator.de(jwt);
-        jdbc.update("UPDATE identity.usuarios SET preferencia_tema = ? WHERE id = ? AND tenant_id = ?",
-                corpo.tema(), ator.id(), ator.tenant());
+        jdbc.update("UPDATE identity.usuarios SET preferencia_tema = ? WHERE id = ? AND deleted_at IS NULL",
+                corpo.tema(), ator.id());
         return Resposta.ok(corpo);
     }
 
@@ -137,7 +137,10 @@ public class ContaController {
     }
 
     private Conta conta(Ator ator) {
-        UsuarioDetalhe usuario = consultas.detalhe(ator.tenant(), ator.id())
+        UUID tenantDoUsuario = jdbc.queryForList(
+                "SELECT tenant_id FROM identity.usuarios WHERE id = ? AND deleted_at IS NULL",
+                UUID.class, ator.id()).stream().findFirst().orElse(ator.tenant());
+        UsuarioDetalhe usuario = consultas.detalhe(tenantDoUsuario, ator.id())
                 .orElseThrow(() -> new NaoEncontradoException("Conta não encontrada."));
         return new Conta(usuario.id(), usuario.nome(), usuario.email(), usuario.telefone(),
                 new TenantResumo(ator.tenant(), tenants.nome(ator.tenant()).orElse(null)),
