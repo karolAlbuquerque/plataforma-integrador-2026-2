@@ -66,7 +66,11 @@ public class UsuarioConsultas {
                                         AND r.usado_em IS NULL AND r.expira_em > now()) THEN 'convite_pendente'
                         ELSE 'convite_expirado' END AS situacao
               FROM identity.usuarios u
-             WHERE u.tenant_id = ? AND u.deleted_at IS NULL
+             WHERE u.deleted_at IS NULL
+               AND (u.tenant_id = ?
+                    OR EXISTS (SELECT 1 FROM identity.usuario_perfis up
+                                 JOIN identity.perfis p ON p.id = up.perfil_id
+                                WHERE up.usuario_id = u.id AND p.tenant_id = ? AND p.deleted_at IS NULL))
             """;
 
     /** Só colunas desta lista entram no ORDER BY — o texto do cliente nunca vai para o SQL. */
@@ -85,7 +89,7 @@ public class UsuarioConsultas {
     public Pagina<UsuarioDaLista> listar(UUID tenant, Filtro filtro, int pagina, int tamanho, String ordenar) {
         String ordem = clausulaDeOrdem(ordenar);
         StringBuilder onde = new StringBuilder(" WHERE true");
-        List<Object> parametros = new ArrayList<>(List.of(tenant));
+        List<Object> parametros = new ArrayList<>(List.of(tenant, tenant));
         if (filtro.busca() != null && !filtro.busca().isBlank()) {
             onde.append(" AND (x.nome ILIKE ? ESCAPE '\\' OR x.email ILIKE ? ESCAPE '\\')");
             String trecho = "%" + escaparLike(filtro.busca().strip()) + "%";
@@ -109,7 +113,7 @@ public class UsuarioConsultas {
         List<Linha> linhas = jdbc.query("SELECT x.* " + base + " ORDER BY " + ordem + ", x.id LIMIT ? OFFSET ?",
                 UsuarioConsultas::linha, daPagina.toArray());
 
-        Map<UUID, List<PerfilDoUsuario>> perfis = perfisDe(linhas.stream().map(Linha::id).toList());
+        Map<UUID, List<PerfilDoUsuario>> perfis = perfisDe(tenant, linhas.stream().map(Linha::id).toList());
         List<UsuarioDaLista> itens = linhas.stream()
                 .map(l -> new UsuarioDaLista(l.id(), l.nome(), l.email(), l.telefone(), l.situacao(),
                         perfis.getOrDefault(l.id(), List.of()), l.ultimoLoginEm(), l.criadoEm()))
@@ -118,14 +122,14 @@ public class UsuarioConsultas {
     }
 
     public Optional<UsuarioDetalhe> detalhe(UUID tenant, UUID id) {
-        return jdbc.query("SELECT x.* FROM (" + SELECAO + ") x WHERE x.id = ?", UsuarioConsultas::linha, tenant, id)
+        return jdbc.query("SELECT x.* FROM (" + SELECAO + ") x WHERE x.id = ?", UsuarioConsultas::linha, tenant, tenant, id)
                 .stream().findFirst()
                 .map(l -> new UsuarioDetalhe(l.id(), l.nome(), l.email(), l.telefone(), l.situacao(),
-                        perfisDe(List.of(l.id())).getOrDefault(l.id(), List.of()), l.ultimoLoginEm(), l.criadoEm(),
+                        perfisDe(tenant, List.of(l.id())).getOrDefault(l.id(), List.of()), l.ultimoLoginEm(), l.criadoEm(),
                         equipesDe(tenant, l.id()), conviteExpiraEm(l), l.segundoFatorAtivo()));
     }
 
-    public Map<UUID, List<PerfilDoUsuario>> perfisDe(List<UUID> usuarios) {
+    public Map<UUID, List<PerfilDoUsuario>> perfisDe(UUID tenant, List<UUID> usuarios) {
         if (usuarios.isEmpty()) {
             return Map.of();
         }
@@ -133,14 +137,14 @@ public class UsuarioConsultas {
         jdbc.query("""
                 SELECT up.usuario_id, p.id, p.nome, p.sistema
                   FROM identity.usuario_perfis up
-                  JOIN identity.perfis p ON p.id = up.perfil_id AND p.deleted_at IS NULL
+                  JOIN identity.perfis p ON p.id = up.perfil_id AND p.tenant_id = ? AND p.deleted_at IS NULL
                  WHERE up.usuario_id = ANY(?::uuid[])
                  ORDER BY p.sistema DESC, lower(p.nome)
                 """, rs -> {
             perfis.computeIfAbsent(rs.getObject("usuario_id", UUID.class), chave -> new ArrayList<>())
                     .add(new PerfilDoUsuario(rs.getObject("id", UUID.class), rs.getString("nome"),
                             rotulo(rs.getString("nome"), rs.getBoolean("sistema")), rs.getBoolean("sistema")));
-        }, comoArray(usuarios));
+        }, tenant, comoArray(usuarios));
         return perfis;
     }
 

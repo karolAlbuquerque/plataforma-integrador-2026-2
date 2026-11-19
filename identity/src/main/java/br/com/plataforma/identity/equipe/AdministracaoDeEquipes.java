@@ -153,11 +153,15 @@ public class AdministracaoDeEquipes {
         return jdbc.query("""
                 SELECT u.id, u.nome, ue.lider
                   FROM identity.usuario_equipes ue
-                  JOIN identity.usuarios u ON u.id = ue.usuario_id AND u.tenant_id = ? AND u.deleted_at IS NULL
+                  JOIN identity.usuarios u ON u.id = ue.usuario_id AND u.deleted_at IS NULL
                  WHERE ue.equipe_id = ?
+                   AND (u.tenant_id = ?
+                        OR EXISTS (SELECT 1 FROM identity.usuario_perfis up
+                                     JOIN identity.perfis p ON p.id = up.perfil_id
+                                    WHERE up.usuario_id = u.id AND p.tenant_id = ? AND p.deleted_at IS NULL))
                  ORDER BY ue.lider DESC, lower(u.nome)
                 """, (rs, linha) -> new Membro(rs.getObject("id", UUID.class), rs.getString("nome"), rs.getBoolean("lider")),
-                tenant, equipe);
+                equipe, tenant, tenant);
     }
 
     private void gravarMembros(UUID equipe, List<MembroInformado> membros) {
@@ -172,10 +176,15 @@ public class AdministracaoDeEquipes {
             return;
         }
         Integer achados = jdbc.queryForObject("""
-                SELECT count(*) FROM identity.usuarios
-                 WHERE tenant_id = ? AND deleted_at IS NULL AND id = ANY(?::uuid[])
-                """, Integer.class, tenant,
-                UsuarioConsultas.comoArray(membros.stream().map(MembroInformado::usuarioId).toList()));
+                SELECT count(*) FROM identity.usuarios u
+                 WHERE u.deleted_at IS NULL AND u.id = ANY(?::uuid[])
+                   AND (u.tenant_id = ?
+                        OR EXISTS (SELECT 1 FROM identity.usuario_perfis up
+                                     JOIN identity.perfis p ON p.id = up.perfil_id
+                                    WHERE up.usuario_id = u.id AND p.tenant_id = ? AND p.deleted_at IS NULL))
+                """, Integer.class,
+                UsuarioConsultas.comoArray(membros.stream().map(MembroInformado::usuarioId).toList()),
+                tenant, tenant);
         if (achados == null || achados != membros.size()) {
             throw ErroDeNegocio.regra("membros", "USUARIO_INEXISTENTE", "Um dos membros escolhidos não existe mais.");
         }

@@ -6,6 +6,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -28,9 +29,11 @@ import br.com.plataforma.identity.autenticacao.Formatos.SessaoAberta;
 import br.com.plataforma.identity.autenticacao.Formatos.SessaoEmitida;
 import br.com.plataforma.identity.autenticacao.Formatos.TenantResumo;
 import br.com.plataforma.identity.autenticacao.Formatos.TokenDeServico;
+import br.com.plataforma.identity.autenticacao.Formatos.TrocaDeTenant;
 import br.com.plataforma.identity.autenticacao.Formatos.UsuarioResumo;
 import br.com.plataforma.identity.api.ErroDeNegocio;
 import br.com.plataforma.identity.segundofator.SegundoFator.Cadastro;
+import br.com.plataforma.identity.seguranca.Ator;
 import br.com.plataforma.identity.seguranca.TokenEmitido;
 import br.com.plataforma.identity.seguranca.Usuarios;
 import br.com.plataforma.identity.tenant.TenantContexto;
@@ -151,6 +154,23 @@ public class AutenticacaoController {
                                                          HttpServletRequest requisicao) {
         TokenEmitido token = servico.emitirTokenDeServico(corpo.clientId(), corpo.clientSecret(), Origem.de(requisicao));
         return Resposta.ok(new TokenDeServico(token.valor(), token.validadeEmSegundos()));
+    }
+
+    @GetMapping("/tenants")
+    public Resposta<java.util.List<Tenants.TenantDaLista>> meusTenants(@AuthenticationPrincipal Jwt jwt) {
+        Ator ator = Ator.de(jwt);
+        boolean administraTodos = ator.permissoes().contains("identity.tenant.administrar");
+        return Resposta.ok(tenants.ativosDoUsuario(ator.id(), ator.tenant(), administraTodos));
+    }
+
+    @PostMapping("/tenant")
+    public ResponseEntity<Resposta<SessaoAberta>> trocarTenant(
+            @Valid @RequestBody TrocaDeTenant corpo,
+            @AuthenticationPrincipal Jwt jwt,
+            @CookieValue(name = CookieDeRefresh.NOME, required = false) String refreshToken,
+            HttpServletRequest requisicao) {
+        Ator ator = Ator.de(jwt);
+        return comSessao(servico.trocarTenant(ator, corpo.tenantId(), refreshToken, Origem.de(requisicao)));
     }
 
     private ResponseEntity<Resposta<SessaoAberta>> comSessao(SessaoEmitida sessao) {

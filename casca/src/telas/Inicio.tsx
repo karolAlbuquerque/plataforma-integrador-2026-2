@@ -63,6 +63,8 @@ export function Inicio() {
                 {item.caminho === '/admin/usuarios' && 'Cadastro, convite e desativação'}
                 {item.caminho === '/admin/perfis' && 'Perfis e matriz de permissões'}
                 {item.caminho === '/admin/equipes' && 'Membros e líderes das equipes'}
+                {item.caminho === '/admin/auditoria' && 'Histórico e exportação de acessos'}
+                {item.caminho === '/admin/tenants' && 'Empresas contratantes e isolamento'}
               </Cartao>
             ))}
           </Secao>

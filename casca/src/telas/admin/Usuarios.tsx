@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Download, Eraser, KeyRound, Mail, Pencil, Plus, RotateCw, ScrollText, UserCheck, UserX, Users as IconeUsuarios, X } from 'lucide-react'
+import { Download, Eraser, KeyRound, Mail, Pencil, Plus, RotateCw, ScrollText, UserCheck, UserPlus, UserX, Users as IconeUsuarios, X } from 'lucide-react'
 import {
   Avatar, Badge, Button, Checkbox, DetailField, DetailSection, EmptyState, FilterBar, FormField, FormSection, Input,
   Modal, PageHeader, Pagination, SearchBar, Select, Spinner, statusBadge, Tabs,
@@ -10,11 +10,11 @@ import { useCarregar, useCasca } from '../../plataforma/contexto'
 import { SITUACOES, dataHora, haQuanto, useAtraso } from '../../plataforma/formato'
 import { navegar } from '../../plataforma/rotas'
 import { baixarTexto } from '../../componentes/SegundoFator'
-import type { EquipeResumo, Pagina, PerfilResumo, UsuarioDaLista, UsuarioDetalhe, UsuarioSalvo } from '../../plataforma/tipos'
+import type { CandidatoDoTenant, EquipeResumo, Pagina, PerfilResumo, UsuarioDaLista, UsuarioDetalhe, UsuarioSalvo } from '../../plataforma/tipos'
 
 const TAMANHO = 20
 
-type Formulario = { modo: 'novo' } | { modo: 'editar'; usuario: UsuarioDetalhe }
+type Formulario = { modo: 'novo' } | { modo: 'editar'; usuario: UsuarioDetalhe } | { modo: 'vincular' }
 
 /** Administração de usuários (RF13 a RF17): lista, detalhe em modal e cadastro por convite. */
 export function Usuarios() {
@@ -72,9 +72,16 @@ export function Usuarios() {
         title="Usuários"
         subtitle={total === null ? 'Carregando…' : total === 1 ? '1 usuário encontrado' : `${total} usuários encontrados`}
         actions={administra && (
-          <Button size="sm" onClick={() => setFormulario({ modo: 'novo' })}>
-            <Plus aria-hidden className="size-4" /> Novo usuário
-          </Button>
+          <>
+            {tem('identity.tenant.administrar') && (
+              <Button variant="secondary" size="sm" onClick={() => setFormulario({ modo: 'vincular' })}>
+                <UserPlus aria-hidden className="size-4" /> Adicionar usuário cadastrado
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setFormulario({ modo: 'novo' })}>
+              <Plus aria-hidden className="size-4" /> Novo usuário
+            </Button>
+          </>
         )}
       />
       <FilterBar>
@@ -179,7 +186,7 @@ export function Usuarios() {
         )}
       </Modal>
 
-      {formulario && (
+      {formulario && formulario.modo !== 'vincular' && (
         <FormularioDeUsuario
           usuario={formulario.modo === 'editar' ? formulario.usuario : undefined}
           perfis={listaDePerfis}
@@ -187,7 +194,114 @@ export function Usuarios() {
           aoSalvar={(salvo) => aoSalvar(salvo, formulario.modo === 'novo')}
         />
       )}
+
+      {formulario?.modo === 'vincular' && (
+        <ModalVincularUsuarioExistente
+          perfis={listaDePerfis}
+          aoFechar={() => setFormulario(null)}
+          aoVincular={() => lista.recarregar()}
+        />
+      )}
     </div>
+  )
+}
+
+function ModalVincularUsuarioExistente({
+  perfis,
+  aoFechar,
+  aoVincular,
+}: {
+  perfis: PerfilResumo[]
+  aoFechar: () => void
+  aoVincular: () => void
+}) {
+  const { sessao, eu } = useCasca()
+  const tenantId = sessao.usuario.tenantId
+  const [busca, setBusca] = useState('')
+  const buscaAtrasada = useAtraso(busca.trim())
+  const [perfilId, setPerfilId] = useState<string>(() => (perfis.find((p) => p.nome === 'VENDEDOR') ?? perfis[0])?.id ?? '')
+  const [salvando, setSalvando] = useState<string | null>(null)
+
+  const candidatos = useCarregar(
+    () => api.get<CandidatoDoTenant[]>(`/api/identity/tenants/${tenantId}/usuarios/candidatos${consulta({ busca: buscaAtrasada })}`),
+    [tenantId, buscaAtrasada],
+  )
+
+  async function adicionar(candidato: CandidatoDoTenant) {
+    if (!perfilId) return
+    setSalvando(candidato.id)
+    try {
+      await api.post(`/api/identity/tenants/${tenantId}/usuarios/vincular`, {
+        usuarioId: candidato.id,
+        perfilId,
+      })
+      avisar('sucesso', `${candidato.nome} adicionado a ${eu?.tenant.nome ?? 'esta empresa'}.`)
+      candidatos.recarregar()
+      aoVincular()
+    } catch (e) {
+      avisar('erro', mensagemDe(e))
+    } finally {
+      setSalvando(null)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={aoFechar}
+      size="lg"
+      title={`Adicionar usuário já cadastrado a ${eu?.tenant.nome ?? 'esta empresa'}`}
+      subtitle="Escolha qualquer usuário já registrado na plataforma e o perfil que ele terá nesta empresa."
+      footer={<Button variant="outline" onClick={aoFechar}>Fechar</Button>}
+    >
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <FormField label="Buscar usuário" htmlFor="vincular-busca">
+          <SearchBar
+            id="vincular-busca"
+            autoFocus
+            placeholder="Nome ou e-mail…"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </FormField>
+        <FormField label="Perfil nesta empresa" htmlFor="vincular-perfil">
+          <Select id="vincular-perfil" value={perfilId} onChange={(e) => setPerfilId(e.target.value)}>
+            {perfis.map((p) => (
+              <option key={p.id} value={p.id}>{p.rotulo}</option>
+            ))}
+          </Select>
+        </FormField>
+      </div>
+
+      <div className="mt-4">
+        {candidatos.carga.tipo === 'carregando' && <Spinner className="py-6" />}
+        {candidatos.carga.tipo === 'erro' && <p role="alert" className="text-sm text-red-600">{candidatos.carga.mensagem}</p>}
+        {candidatos.carga.tipo === 'pronto' && candidatos.carga.dados.length === 0 && (
+          <p className="py-6 text-center text-sm text-texto-3">Nenhum usuário encontrado fora desta empresa.</p>
+        )}
+        {candidatos.carga.tipo === 'pronto' && candidatos.carga.dados.length > 0 && (
+          <ul className="max-h-72 divide-y divide-borda overflow-y-auto rounded-xl border border-borda" aria-label="Usuários cadastrados">
+            {candidatos.carga.dados.map((candidato) => (
+              <li key={candidato.id} className="flex items-center gap-3 px-3.5 py-2.5">
+                <Avatar nome={candidato.nome} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-texto">{candidato.nome}</p>
+                  <p className="truncate text-xs text-texto-3">{candidato.email} · {candidato.empresaOrigem}</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={salvando === candidato.id}
+                  onClick={() => void adicionar(candidato)}
+                >
+                  <UserPlus aria-hidden className="size-3.5" /> Adicionar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Modal>
   )
 }
 

@@ -159,8 +159,8 @@ public class AdministracaoDeUsuarios {
             try {
                 jdbc.update("""
                         UPDATE identity.usuarios SET nome = ?, email = ?::citext, telefone = ?, updated_at = now(), updated_by = ?
-                         WHERE id = ? AND tenant_id = ?
-                        """, dados.nome(), dados.email(), dados.telefone(), ator.id(), id, ator.tenant());
+                         WHERE id = ? AND deleted_at IS NULL
+                        """, dados.nome(), dados.email(), dados.telefone(), ator.id(), id);
             } catch (DuplicateKeyException e) {
                 throw emailEmUso();
             }
@@ -175,9 +175,14 @@ public class AdministracaoDeUsuarios {
             }
 
             if (perfisMudaram) {
-                jdbc.update("DELETE FROM identity.usuario_perfis WHERE usuario_id = ?", id);
+                jdbc.update("""
+                        DELETE FROM identity.usuario_perfis up
+                         USING identity.perfis p
+                         WHERE up.perfil_id = p.id AND up.usuario_id = ? AND p.tenant_id = ?
+                        """, id, ator.tenant());
                 perfis.forEach(perfil -> jdbc.update(
-                        "INSERT INTO identity.usuario_perfis (usuario_id, perfil_id) VALUES (?, ?)", id, perfil.id()));
+                        "INSERT INTO identity.usuario_perfis (usuario_id, perfil_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                        id, perfil.id()));
                 auditoria.registrar(ator.tenant(), ator.id(), ip, "alterar", "usuario_perfis", id,
                         Map.of("perfis", nomes(perfisAntes)),
                         Map.of("perfis", nomes(perfis),
@@ -294,12 +299,17 @@ public class AdministracaoDeUsuarios {
         Atual atual = jdbc.query("""
                 SELECT id, nome, email::text AS email, telefone, ativo, senha_hash IS NOT NULL AS senha_definida,
                        anonimizado_em IS NOT NULL AS anonimizado
-                  FROM identity.usuarios WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL
+                  FROM identity.usuarios u
+                 WHERE u.id = ? AND u.deleted_at IS NULL
+                   AND (u.tenant_id = ?
+                        OR EXISTS (SELECT 1 FROM identity.usuario_perfis up
+                                     JOIN identity.perfis p ON p.id = up.perfil_id
+                                    WHERE up.usuario_id = u.id AND p.tenant_id = ? AND p.deleted_at IS NULL))
                    FOR UPDATE
                 """, (rs, linha) -> new Atual(rs.getObject("id", UUID.class), rs.getString("nome"), rs.getString("email"),
                         rs.getString("telefone"), rs.getBoolean("ativo"), rs.getBoolean("senha_definida"),
                         rs.getBoolean("anonimizado")),
-                id, tenant).stream().findFirst().orElseThrow(AdministracaoDeUsuarios::naoEncontrado);
+                id, tenant, tenant).stream().findFirst().orElseThrow(AdministracaoDeUsuarios::naoEncontrado);
         // Anonimizado não volta: reativar ou editar mandaria convite para um e-mail que não existe
         if (atual.anonimizado()) {
             throw ErroDeNegocio.regra("id", "USUARIO_ANONIMIZADO", "Este usuário foi anonimizado e não pode ser alterado.");

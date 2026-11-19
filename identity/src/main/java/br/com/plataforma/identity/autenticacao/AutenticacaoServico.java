@@ -15,8 +15,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import br.com.plataforma.identity.api.ErroCampo;
+import br.com.plataforma.identity.api.ErroDeNegocio;
 import br.com.plataforma.identity.api.MuitasTentativasException;
 import br.com.plataforma.identity.api.NaoAutenticadoException;
+import br.com.plataforma.identity.api.NaoEncontradoException;
 import br.com.plataforma.identity.auditoria.Auditoria;
 import br.com.plataforma.identity.autenticacao.CredenciaisDeServico.Credencial;
 import br.com.plataforma.identity.autenticacao.Formatos.DesafioEmitido;
@@ -28,9 +30,11 @@ import br.com.plataforma.identity.segundofator.DesafiosDeSegundoFator;
 import br.com.plataforma.identity.segundofator.DesafiosDeSegundoFator.Desafio;
 import br.com.plataforma.identity.segundofator.SegundoFator;
 import br.com.plataforma.identity.segundofator.SegundoFator.Cadastro;
+import br.com.plataforma.identity.seguranca.Ator;
 import br.com.plataforma.identity.seguranca.EmissorDeToken;
 import br.com.plataforma.identity.seguranca.TokenEmitido;
 import br.com.plataforma.identity.seguranca.TokenOpaco;
+import br.com.plataforma.identity.tenant.Tenants;
 import br.com.plataforma.identity.usuario.UsuarioAutenticado;
 import br.com.plataforma.identity.usuario.UsuarioDeLogin;
 import br.com.plataforma.identity.usuario.UsuarioRepositorio;
@@ -73,6 +77,7 @@ public class AutenticacaoServico {
     private final SegundoFator segundoFator;
     private final DesafiosDeSegundoFator desafios;
     private final AvisosDeSegundoFator avisos;
+    private final Tenants tenants;
     private final Duration duracaoMaximaDaSessao;
     private final Duration validadeDoDesafio;
 
@@ -82,7 +87,7 @@ public class AutenticacaoServico {
     public AutenticacaoServico(UsuarioRepositorio usuarios, LimiteDeTentativas tentativas, RefreshTokens refreshTokens,
                                CredenciaisDeServico credenciais, EmissorDeToken emissor, PasswordEncoder senhas,
                                Auditoria auditoria, TransactionTemplate transacao, SegundoFator segundoFator,
-                               DesafiosDeSegundoFator desafios, AvisosDeSegundoFator avisos,
+                               DesafiosDeSegundoFator desafios, AvisosDeSegundoFator avisos, Tenants tenants,
                                @Value("${identity.sessao.duracao-maxima}") Duration duracaoMaximaDaSessao,
                                @Value("${identity.segundo-fator.validade-desafio}") Duration validadeDoDesafio) {
         this.usuarios = usuarios;
@@ -96,6 +101,7 @@ public class AutenticacaoServico {
         this.segundoFator = segundoFator;
         this.desafios = desafios;
         this.avisos = avisos;
+        this.tenants = tenants;
         this.duracaoMaximaDaSessao = duracaoMaximaDaSessao;
         this.validadeDoDesafio = validadeDoDesafio;
         this.hashDeComparacao = senhas.encode(UUID.randomUUID().toString());
@@ -300,11 +306,78 @@ public class AutenticacaoServico {
             if (usuario.isEmpty()) {
                 return Optional.empty();   // desativado durante a sessão: o token revogado acima encerra
             }
-            UsuarioAutenticado acessos = usuarios.carregarAcessos(usuario.get());
+            UsuarioDeLogin u = usuario.get();
+            UUID tenantEfetivo = u.tenantId();
+            if (atual.tenantId() != null && !atual.tenantId().equals(u.tenantId()) && tenants.estaAtivo(atual.tenantId())) {
+                UsuarioAutenticado naOrigem = usuarios.carregarAcessos(u);
+                if (naOrigem.permissoes().contains("identity.tenant.administrar")
+                        || usuarios.pertenceAoTenant(u.id(), atual.tenantId())) {
+                    tenantEfetivo = atual.tenantId();
+                }
+            }
+            UsuarioAutenticado acessos = usuarios.carregarAcessosNoTenant(u, tenantEfetivo);
             String refresh = TokenOpaco.gerar();
-            refreshTokens.continuar(acessos.id(), refresh, atual.expiraEm(), origem, atual.sessaoId(), atual.iniciadaEm());
+            UUID tenantGuardado = tenantEfetivo.equals(u.tenantId()) ? null : tenantEfetivo;
+            refreshTokens.continuar(acessos.id(), refresh, atual.expiraEm(), origem, atual.sessaoId(), atual.iniciadaEm(),
+                    tenantGuardado);
             return Optional.of(new SessaoEmitida(emissor.paraUsuario(acessos), refresh, atual.expiraEm(),
-                    UsuarioResumo.de(acessos, usuario.get().tema()), null));
+                    UsuarioResumo.de(acessos, u.tema()), null));
+        });
+    }
+
+    /**
+     * Alterna a sessão para outro tenant ativo (Seletor de Empresa na casca). Mantém o prazo de 8h
+     * da sessão em andamento e grava o tenant escolhido no refresh token, para sobreviver ao F5 e
+     * às renovações automáticas.
+     */
+    public SessaoEmitida trocarTenant(Ator ator, UUID tenantAlvo, String refreshToken, Origem origem) {
+        return transacao.execute(status -> {
+            UsuarioDeLogin usuario = usuarios.buscarPorId(ator.id()).filter(UsuarioDeLogin::podeEntrar)
+                    .orElseThrow(() -> new NaoAutenticadoException("Sessão encerrada. Entre novamente."));
+            if (!tenants.existe(tenantAlvo)) {
+                throw new NaoEncontradoException("Empresa não encontrada.");
+            }
+            if (!tenants.estaAtivo(tenantAlvo)) {
+                throw ErroDeNegocio.regra("tenantId", "TENANT_INATIVO",
+                        "Esta empresa está desativada. Reative-a antes de entrar nela.");
+            }
+            boolean administraTenants = ator.permissoes().contains("identity.tenant.administrar")
+                    || usuarios.carregarAcessos(usuario).permissoes().contains("identity.tenant.administrar");
+            if (!administraTenants && !usuarios.pertenceAoTenant(usuario.id(), tenantAlvo)) {
+                throw new org.springframework.security.access.AccessDeniedException("Você não está vinculado a esta empresa.");
+            }
+            if (administraTenants) {
+                usuarios.vincularComoAdministradorSeSemPerfil(usuario.id(), tenantAlvo);
+            }
+            UsuarioAutenticado acessos = usuarios.carregarAcessosNoTenant(usuario, tenantAlvo);
+            String novoRefresh = TokenOpaco.gerar();
+            UUID tenantGuardado = tenantAlvo.equals(usuario.tenantId()) ? null : tenantAlvo;
+
+            Optional<RefreshTokens.Registro> atual = (refreshToken == null || refreshToken.isBlank())
+                    ? Optional.empty()
+                    : refreshTokens.buscar(refreshToken)
+                            .filter(RefreshTokens.Registro::valido)
+                            .filter(r -> r.usuarioId().equals(usuario.id()));
+
+            Instant fimDaSessao;
+            if (atual.isPresent() && refreshTokens.revogar(atual.get().id())) {
+                RefreshTokens.Registro reg = atual.get();
+                fimDaSessao = reg.expiraEm();
+                refreshTokens.continuar(acessos.id(), novoRefresh, fimDaSessao, origem, reg.sessaoId(),
+                        reg.iniciadaEm(), tenantGuardado);
+            } else {
+                fimDaSessao = Instant.now().plus(duracaoMaximaDaSessao).truncatedTo(ChronoUnit.SECONDS);
+                refreshTokens.continuar(acessos.id(), novoRefresh, fimDaSessao, origem, UUID.randomUUID(),
+                        Instant.now(), tenantGuardado);
+            }
+
+            if (!tenantAlvo.equals(ator.tenant())) {
+                Map<String, Object> detalhes = Map.of("tenantAnterior", ator.tenant(), "tenantNovo", tenantAlvo);
+                auditoria.registrar(ator.tenant(), ator.id(), origem.ip(), "trocar_tenant", "sessao", ator.id(), detalhes);
+                auditoria.registrar(tenantAlvo, ator.id(), origem.ip(), "trocar_tenant", "sessao", ator.id(), detalhes);
+            }
+            return new SessaoEmitida(emissor.paraUsuario(acessos), novoRefresh, fimDaSessao,
+                    UsuarioResumo.de(acessos, usuario.tema()), null);
         });
     }
 

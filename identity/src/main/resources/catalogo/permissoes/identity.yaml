@@ -47,3 +47,6 @@ permissoes:
   - codigo: identity.tenant.ver
     descricao: Descobrir o tenant de uma página pública pelo subdomínio (só token de serviço)
     servicos: [landing, marketing, crm, contratos]
+  - codigo: identity.tenant.administrar
+    descricao: Cadastrar, editar, ativar, desativar empresas contratantes (tenants) e alternar entre elas
+    perfisPadrao: [ADMINISTRADOR]

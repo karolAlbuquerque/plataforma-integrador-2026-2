@@ -28,6 +28,7 @@ export const ACOES: Record<string, string> = {
   desativar: 'Desativou',
   reativar: 'Reativou',
   exportar: 'Exportou',
+  trocar_tenant: 'Trocou de empresa',
 }
 
 export const ENTIDADES: Record<string, string> = {
@@ -43,6 +44,7 @@ export const ENTIDADES: Record<string, string> = {
   equipe_membros: 'Membros da equipe',
   rota: 'Rota da API',
   auditoria: 'Auditoria',
+  tenant: 'Empresa',
 }
 
 type Tom = 'red' | 'green' | 'orange' | 'indigo' | 'gray'

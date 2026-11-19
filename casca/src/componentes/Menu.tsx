@@ -14,6 +14,8 @@ export function caminhoDaRota(rota: Rota) {
     case 'perfis':
     case 'perfil': return '/admin/perfis'
     case 'equipes': return '/admin/equipes'
+    case 'auditoria': return '/admin/auditoria'
+    case 'tenants': return '/admin/tenants'
     case 'conta': return '/conta'
     case 'inicio': return '/'
     default: return null
